@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+option csharp_namespace = "MirrorSync.Protos";
+
+package mirrorsync;
+
+service DeviceControl {
+  rpc ListDevices(Empty) returns (DeviceList);
+  rpc SendCommand(CommandRequest) returns (CommandResponse);
+  rpc GetDeviceStatus(DeviceStatusRequest) returns (DeviceStatusResponse);
+  rpc StartMirror(MirrorRequest) returns (MirrorResponse);
+  rpc StopMirror(MirrorRequest) returns (MirrorResponse);
+}
+
+message Empty {}
+
+message Device {
+  string serial = 1;
+  string model = 2;
+  string status = 3;
+  bool agent_connected = 4;
+  int32 port = 5;
+}
+
+message DeviceList {
+  repeated Device devices = 1;
+}
+
+message CommandRequest {
+  string type = 1; // TAP, SWIPE, KEY, TEXT
+  float x = 2;
+  float y = 3;
+  float end_x = 4;
+  float end_y = 5;
+  int32 duration_ms = 6;
+  string text = 7;
+  int32 key_code = 8;
+  repeated string target_devices = 9; // empty = all devices
+}
+
+message CommandResponse {
+  bool success = 1;
+  string message = 2;
+  int32 devices_count = 3;
+}
+
+message DeviceStatusRequest {
+  string serial = 1;
+}
+
+message DeviceStatusResponse {
+  string serial = 1;
+  string status = 2;
+  bool agent_connected = 3;
+  int64 last_ping_ms = 4;
+}
+
+message MirrorRequest {
+  string serial = 1;
+}
+
+message MirrorResponse {
+  bool success = 1;
+  string message = 2;
+}

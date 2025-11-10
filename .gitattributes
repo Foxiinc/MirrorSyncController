@@ -1,0 +1,34 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Windows batch files should use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts should use LF
+*.sh text eol=lf
+
+# Source code files
+*.cs text diff=csharp
+*.py text diff=python
+*.kt text diff=java
+*.java text diff=java
+*.proto text
+*.json text
+*.xml text
+*.yml text
+*.yaml text
+
+# Binary files
+*.dll binary
+*.exe binary
+*.so binary
+*.dylib binary
+*.apk binary
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

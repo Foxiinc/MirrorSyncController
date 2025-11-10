@@ -1,0 +1,95 @@
+# Build outputs
+bin/
+obj/
+build/
+dist/
+out/
+
+# .NET
+*.dll
+*.exe
+*.pdb
+*.cache
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+packages/
+.vs/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+*.egg-info/
+
+# Generated protobuf files
+gui/*_pb2.py
+gui/*_pb2_grpc.py
+
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+android/app/build/
+android/build/
+android/.gradle/
+
+# Installer outputs
+installer/Output/
+installer/temp/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# IDE files
+*.swp
+*.swo
+*~
+
+# Dependencies
+node_modules/
+platform-tools/
+scrcpy/
+
+# Secrets and configs
+*.key
+*.pem
+appsettings.*.json
+!appsettings.json
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
