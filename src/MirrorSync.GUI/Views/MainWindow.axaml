@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MirrorSync.GUI.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="MirrorSync.GUI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+
+        Title="MirrorSync Controller"
+        Width="1200" Height="800">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- Toolbar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+            <Button Content="Refresh Devices" Command="{Binding RefreshDevicesCommand}" Margin="5"/>
+            <CheckBox Content="Broadcast Mode" IsChecked="{Binding IsBroadcastMode}" Margin="5"/>
+            <Button Content="Start Mirror" Command="{Binding StartMirrorCommand}" Margin="5"/>
+            <Button Content="Stop Mirror" Command="{Binding StopMirrorCommand}" Margin="5"/>
+        </StackPanel>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1" ColumnDefinitions="300,*">
+            <!-- Device List -->
+            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Margin="10">
+                <StackPanel>
+                    <TextBlock Text="Connected Devices" FontWeight="Bold" Margin="10"/>
+                    <ListBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" Margin="10">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Model}" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding Serial}" FontSize="10"/>
+                                    <TextBlock Text="{Binding Status}" FontSize="10"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Mirror View -->
+            <Border Grid.Column="1" BorderBrush="Gray" BorderThickness="1" Margin="10">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Row="0" Text="Device Mirror" FontWeight="Bold" Margin="10"/>
+                    
+                    <!-- Screen Mirror -->
+                    <Border Grid.Row="1" Background="Black" Margin="10">
+                        <Image Source="{Binding MirrorImage}" Stretch="Uniform"/>
+                    </Border>
+
+                    <!-- Control Panel -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+                        <Button Content="TAP" Command="{Binding TapCommand}" Margin="5"/>
+                        <Button Content="SWIPE" Command="{Binding SwipeCommand}" Margin="5"/>
+                        <TextBox Text="{Binding InputText}" Watermark="Enter text..." Width="200" Margin="5"/>
+                        <Button Content="SEND TEXT" Command="{Binding SendTextCommand}" Margin="5"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

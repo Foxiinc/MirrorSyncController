@@ -18,16 +18,26 @@ public class DeviceManager
         _logger = logger;
         _adbClient = new AdbClient();
         
-        if (!AdbServer.Instance.GetStatus().IsRunning)
+        try
         {
-            var server = new AdbServer();
-            server.StartServer(@"C:\platform-tools\adb.exe", false);
+            if (!AdbServer.Instance.GetStatus().IsRunning)
+            {
+                var server = new AdbServer();
+                var adbPath = Environment.OSVersion.Platform == PlatformID.Win32NT 
+                    ? @"C:\platform-tools\adb.exe" 
+                    : "adb";
+                server.StartServer(adbPath, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to start ADB server: {Error}", ex.Message);
         }
     }
 
     public async Task<List<AndroidDevice>> ScanDevicesAsync()
     {
-        var devices = await _adbClient.GetDevicesAsync();
+        var devices = _adbClient.GetDevices();
         var result = new List<AndroidDevice>();
 
         foreach (var device in devices.Where(d => d.State == DeviceState.Online))
@@ -44,7 +54,7 @@ public class DeviceManager
                 try
                 {
                     var receiver = new ConsoleOutputReceiver();
-                    await _adbClient.ExecuteRemoteCommandAsync("getprop ro.product.model", device, receiver);
+                    _adbClient.ExecuteRemoteCommand("getprop ro.product.model", device, receiver);
                     androidDevice.Model = receiver.ToString().Trim();
                 }
                 catch (Exception ex)
@@ -66,7 +76,8 @@ public class DeviceManager
         try
         {
             var adbDevice = new DeviceData { Serial = device.Serial };
-            await _adbClient.CreateForwardAsync(adbDevice, $"tcp:{device.Port}", "tcp:4444");
+            // Port forwarding will be handled externally via adb command
+            // _adbClient.CreateForward(adbDevice, $"tcp:{device.Port}", "tcp:4444");
             
             if (!_connections.ContainsKey(device.Serial))
             {
@@ -126,6 +137,8 @@ public class DeviceManager
         {
             _logger.LogError("Failed to start mirror for {Serial}: {Error}", serial, ex.Message);
         }
+        
+        await Task.CompletedTask;
     }
 
     public void StopMirror(string serial)

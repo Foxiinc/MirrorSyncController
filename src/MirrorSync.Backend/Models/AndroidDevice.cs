@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace MirrorSync.Backend.Models;
 
 public class AndroidDevice

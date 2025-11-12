@@ -60,6 +60,7 @@ def test_scrcpy():
 
 def test_build_artifacts():
     """Test if build artifacts exist"""
+    import platform
     backend_exe = Path("src/MirrorSync.Backend/bin/Release/net8.0/win-x64/publish/MirrorSync.Backend.exe")
     gui_dist = Path("gui/dist/MirrorSyncGUI")
     android_apk = Path("android/app/build/outputs/apk/release/app-release.apk")
