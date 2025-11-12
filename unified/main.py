@@ -28,7 +28,11 @@ from gui.enhanced_main_window import EnhancedMainWindow as MainWindow
 class UnifiedApp:
     def __init__(self):
         self.backend_process = None
-        self.backend_path = base_path / "backend" / "MirrorSync.Backend.exe"
+        # Определяем путь к Backend в зависимости от ОС
+        if os.name == 'nt':  # Windows
+            self.backend_path = base_path / "backend" / "MirrorSync.Backend.exe"
+        else:  # Linux/Unix
+            self.backend_path = base_path.parent / "src" / "MirrorSync.Backend" / "bin" / "Release" / "net6.0" / "linux-x64" / "publish" / "MirrorSync.Backend"
         
     def start_backend(self):
         """Запускает Backend процесс"""
