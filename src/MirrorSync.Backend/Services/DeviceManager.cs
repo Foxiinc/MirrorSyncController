@@ -20,55 +20,92 @@ public class DeviceManager
         
         try
         {
+            // Попробуем найти ADB в разных местах
+            var adbPaths = new[]
+            {
+                @"C:\platform-tools\adb.exe",
+                @"C:\Android\Sdk\platform-tools\adb.exe",
+                @"C:\Users\" + Environment.UserName + @"\AppData\Local\Android\Sdk\platform-tools\adb.exe",
+                "adb.exe", // В PATH
+                "adb" // Linux/Mac
+            };
+            
+            string? workingAdbPath = null;
+            foreach (var path in adbPaths)
+            {
+                if (File.Exists(path) || path.Contains("adb") && !path.Contains(@"C:\"))
+                {
+                    workingAdbPath = path;
+                    break;
+                }
+            }
+            
+            if (workingAdbPath == null)
+            {
+                _logger.LogWarning("ADB not found. Please install Android SDK Platform Tools.");
+                return;
+            }
+            
             if (!AdbServer.Instance.GetStatus().IsRunning)
             {
                 var server = new AdbServer();
-                var adbPath = Environment.OSVersion.Platform == PlatformID.Win32NT 
-                    ? @"C:\platform-tools\adb.exe" 
-                    : "adb";
-                server.StartServer(adbPath, false);
+                server.StartServer(workingAdbPath, false);
+                _logger.LogInformation("ADB server started with path: {Path}", workingAdbPath);
+            }
+            else
+            {
+                _logger.LogInformation("ADB server already running");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError("Failed to start ADB server: {Error}", ex.Message);
+            _logger.LogWarning("Device management will be limited without ADB");
         }
     }
 
     public async Task<List<AndroidDevice>> ScanDevicesAsync()
     {
-        var devices = _adbClient.GetDevices();
-        var result = new List<AndroidDevice>();
-
-        foreach (var device in devices.Where(d => d.State == DeviceState.Online))
+        try
         {
-            var androidDevice = _devices.GetOrAdd(device.Serial, serial => new AndroidDevice
-            {
-                Serial = serial,
-                Port = _nextPort++,
-                Status = "connected"
-            });
+            var devices = _adbClient.GetDevices();
+            var result = new List<AndroidDevice>();
 
-            if (string.IsNullOrEmpty(androidDevice.Model))
+            foreach (var device in devices.Where(d => d.State == DeviceState.Online))
             {
-                try
+                var androidDevice = _devices.GetOrAdd(device.Serial, serial => new AndroidDevice
                 {
-                    var receiver = new ConsoleOutputReceiver();
-                    _adbClient.ExecuteRemoteCommand("getprop ro.product.model", device, receiver);
-                    androidDevice.Model = receiver.ToString().Trim();
-                }
-                catch (Exception ex)
+                    Serial = serial,
+                    Port = _nextPort++,
+                    Status = "connected"
+                });
+
+                if (string.IsNullOrEmpty(androidDevice.Model))
                 {
-                    _logger.LogWarning("Failed to get model for {Serial}: {Error}", device.Serial, ex.Message);
-                    androidDevice.Model = "Unknown";
+                    try
+                    {
+                        var receiver = new ConsoleOutputReceiver();
+                        _adbClient.ExecuteRemoteCommand("getprop ro.product.model", device, receiver);
+                        androidDevice.Model = receiver.ToString().Trim();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("Failed to get model for {Serial}: {Error}", device.Serial, ex.Message);
+                        androidDevice.Model = "Unknown";
+                    }
                 }
+
+                await SetupPortForwardAsync(androidDevice);
+                result.Add(androidDevice);
             }
 
-            await SetupPortForwardAsync(androidDevice);
-            result.Add(androidDevice);
+            return result;
         }
-
-        return result;
+        catch (Exception ex)
+        {
+            _logger.LogError("Error scanning devices: {Error}", ex.Message);
+            return new List<AndroidDevice>();
+        }
     }
 
     private async Task SetupPortForwardAsync(AndroidDevice device)
@@ -76,8 +113,19 @@ public class DeviceManager
         try
         {
             var adbDevice = new DeviceData { Serial = device.Serial };
-            // Port forwarding will be handled externally via adb command
-            // _adbClient.CreateForward(adbDevice, $"tcp:{device.Port}", "tcp:4444");
+            
+            // Настраиваем port forwarding
+            try
+            {
+                // Простое port forwarding на фиксированный порт
+                _adbClient.CreateForward(adbDevice, "tcp:4444", "tcp:4444", false);
+                _logger.LogInformation("Port forwarding setup: {LocalPort} -> {DevicePort} for {Serial}", 
+                    device.Port, 4444, device.Serial);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Failed to create port forward for {Serial}: {Error}", device.Serial, ex.Message);
+            }
             
             if (!_connections.ContainsKey(device.Serial))
             {

@@ -64,7 +64,7 @@ class TcpServerService : Service() {
                 serverSocket = ServerSocket(PORT)
                 Log.i(TAG, "TCP server started on port $PORT")
                 
-                while (!serviceScope.isActive) {
+                while (serviceScope.isActive) {
                     try {
                         val clientSocket = serverSocket?.accept()
                         if (clientSocket != null) {
@@ -96,6 +96,9 @@ class TcpServerService : Service() {
                     try {
                         if (line.contains("TIME_SYNC")) {
                             handleTimeSync(line, writer)
+                        } else if (line.contains("PING")) {
+                            // Отвечаем на PING
+                            writer.println("{\"type\":\"PONG\",\"success\":true}")
                         } else {
                             val command = gson.fromJson(line, DeviceCommand::class.java)
                             val response = executeCommand(command)

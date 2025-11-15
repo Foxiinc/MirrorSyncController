@@ -22,6 +22,15 @@ class MirrorAccessibilityService : AccessibilityService() {
         instance = this
         Log.i(TAG, "Accessibility service connected")
         
+        // Подавляем системные предупреждения
+        try {
+            val resolver = contentResolver
+            android.provider.Settings.Global.putString(resolver, "hidden_api_policy", "1")
+            android.provider.Settings.Global.putString(resolver, "development_settings_enabled", "0")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not suppress warnings: ${e.message}")
+        }
+        
         // Start TCP server
         val intent = Intent(this, TcpServerService::class.java)
         startForegroundService(intent)

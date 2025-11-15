@@ -172,6 +172,7 @@ class EnhancedMainWindow(QMainWindow):
         phone_screen = PhoneScreen(serial)
         phone_screen.tap_signal.connect(lambda x, y, s=serial: self.handle_screen_tap(s, x, y))
         phone_screen.swipe_signal.connect(lambda x1, y1, x2, y2, s=serial: self.handle_screen_swipe(s, x1, y1, x2, y2))
+        phone_screen.key_signal.connect(lambda key_code, s=serial: self.handle_screen_key(s, key_code))
         
         self.phone_screens[serial] = phone_screen
         self.phone_tabs.addTab(phone_screen, f"📱 {serial[-4:]}")
@@ -207,6 +208,18 @@ class EnhancedMainWindow(QMainWindow):
         status = "✓" if success else "✗"
         self.log_message(f"{status} Swipe ({x1:.2f},{y1:.2f})→({x2:.2f},{y2:.2f}) on {serial if not self.broadcast_mode else 'all devices'}")
     
+    def handle_screen_key(self, serial, key_code):
+        if self.broadcast_mode:
+            targets = []
+        else:
+            targets = [serial]
+            
+        success = self.client.send_command("KEY", key_code=key_code, target_devices=targets)
+        status = "✓" if success else "✗"
+        key_names = {3: "HOME", 4: "BACK", 82: "MENU"}
+        key_name = key_names.get(key_code, f"KEY_{key_code}")
+        self.log_message(f"{status} {key_name} sent to {serial if not self.broadcast_mode else 'all devices'}")
+    
     def on_device_selection_changed(self):
         if not self.broadcast_mode:
             selected_rows = set(item.row() for item in self.device_table.selectedItems())
@@ -228,7 +241,7 @@ class EnhancedMainWindow(QMainWindow):
         targets = [] if self.broadcast_mode else self.selected_devices
         
         if cmd_type == "HOME":
-            success = self.client.send_command("TAP", 0.5, 0.95, target_devices=targets)
+            success = self.client.send_command("KEY", key_code=3, target_devices=targets)
         elif cmd_type == "BACK":
             success = self.client.send_command("KEY", key_code=4, target_devices=targets)
         elif cmd_type == "MENU":

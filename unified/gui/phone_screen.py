@@ -6,6 +6,7 @@ from .screenshot_service import ScreenshotService
 class PhoneScreen(QWidget):
     tap_signal = pyqtSignal(float, float)
     swipe_signal = pyqtSignal(float, float, float, float)
+    key_signal = pyqtSignal(int)
     
     def __init__(self, device_serial=""):
         super().__init__()
@@ -47,15 +48,15 @@ class PhoneScreen(QWidget):
         controls.addWidget(refresh_btn)
         
         home_btn = QPushButton("🏠 Home")
-        home_btn.clicked.connect(lambda: self.tap_signal.emit(0.5, 0.95))
+        home_btn.clicked.connect(lambda: self.send_key_command(3))  # KEYCODE_HOME
         controls.addWidget(home_btn)
         
         back_btn = QPushButton("⬅️ Back")
-        back_btn.clicked.connect(lambda: self.tap_signal.emit(0.1, 0.95))
+        back_btn.clicked.connect(lambda: self.send_key_command(4))  # KEYCODE_BACK
         controls.addWidget(back_btn)
         
         menu_btn = QPushButton("☰ Menu")
-        menu_btn.clicked.connect(lambda: self.tap_signal.emit(0.9, 0.95))
+        menu_btn.clicked.connect(lambda: self.send_key_command(82))  # KEYCODE_MENU
         controls.addWidget(menu_btn)
         
         layout.addLayout(controls)
@@ -138,10 +139,10 @@ class PhoneScreen(QWidget):
     def update_screenshot(self, serial, pixmap):
         """Обновляет скриншот"""
         if serial == self.device_serial and pixmap:
-            # Масштабируем под размер экрана
+            # Растягиваем на всё поле для нормализованных координат
             self.screenshot = pixmap.scaled(
                 self.screen_width, self.screen_height, 
-                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.AspectRatioMode.IgnoreAspectRatio,  # Полное растяжение
                 Qt.TransformationMode.SmoothTransformation
             )
             self.screen_frame.update()
@@ -153,6 +154,10 @@ class PhoneScreen(QWidget):
             if pixmap:
                 self.update_screenshot(self.device_serial, pixmap)
         
+    def send_key_command(self, key_code):
+        """Отправляет команду клавиши"""
+        self.key_signal.emit(key_code)
+    
     def set_device_serial(self, serial):
         self.stop_screenshot_service()
         self.device_serial = serial

@@ -29,7 +29,7 @@ class ScreenshotService(QThread):
                 pixmap = self.take_screenshot()
                 if pixmap:
                     self.screenshot_ready.emit(self.serial, pixmap)
-                time.sleep(0.01)  # Обновляем каждые 100ms для live эффекта
+                time.sleep(0.05)  # 20 FPS для плавности
             except Exception as e:
                 print(f"Screenshot error for {self.serial}: {e}")
                 time.sleep(3)

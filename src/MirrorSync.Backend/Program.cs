@@ -17,6 +17,12 @@ if (args.Contains("--service"))
     builder.Host.UseWindowsService();
 }
 
+// Configure Kestrel for gRPC
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenLocalhost(50051, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+});
+
 // Add services
 builder.Services.AddGrpc();
 builder.Services.AddSingleton<DeviceManager>();
@@ -29,4 +35,4 @@ app.MapGrpcService<DeviceControlService>();
 // Health check endpoint
 app.MapGet("/health", () => "OK");
 
-app.Run("http://localhost:50051");
+app.Run();

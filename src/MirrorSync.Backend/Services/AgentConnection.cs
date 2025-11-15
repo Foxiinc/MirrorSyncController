@@ -24,20 +24,39 @@ public class AgentConnection
         try
         {
             _tcpClient = new TcpClient();
-            await _tcpClient.ConnectAsync("127.0.0.1", _device.Port);
+            _tcpClient.ReceiveTimeout = 5000;
+            _tcpClient.SendTimeout = 5000;
+            
+            // Подключаемся к порту 4444 (фиксированный порт агента)
+            await _tcpClient.ConnectAsync("127.0.0.1", 4444);
             _stream = _tcpClient.GetStream();
             
-            await SyncTimeAsync();
-            _device.AgentConnected = true;
-            _device.LastPingMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            // Проверяем соединение пингом
+            var pingCommand = new { type = "PING" };
+            var json = JsonSerializer.Serialize(pingCommand);
+            var data = Encoding.UTF8.GetBytes(json + "\n");
+            await _stream.WriteAsync(data);
             
-            _logger.LogInformation("Connected to agent on device {Serial}", _device.Serial);
-            return true;
+            var buffer = new byte[1024];
+            var bytesRead = await _stream.ReadAsync(buffer);
+            
+            if (bytesRead > 0)
+            {
+                await SyncTimeAsync();
+                _device.AgentConnected = true;
+                _device.LastPingMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                
+                _logger.LogInformation("Connected to agent on device {Serial} port {Port}", _device.Serial, _device.Port);
+                return true;
+            }
+            
+            throw new Exception("No response from agent");
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to connect to agent on {Serial}: {Error}", _device.Serial, ex.Message);
+            _logger.LogWarning("Failed to connect to agent on {Serial}:{Port} - {Error}", _device.Serial, _device.Port, ex.Message);
             _device.AgentConnected = false;
+            Disconnect();
             return false;
         }
     }
