@@ -46,6 +46,7 @@ class ScreenshotService(QThread):
             
             # Проверяем наличие ADB
             adb_paths = [
+                'C:\\Users\\foxi\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe',
                 'C:\\platform-tools\\adb.exe',
                 'C:\\Android\\Sdk\\platform-tools\\adb.exe', 
                 'adb'

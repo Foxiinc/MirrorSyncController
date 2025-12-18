@@ -2,11 +2,42 @@ import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                             QWidget, QTableWidget, QTableWidgetItem, QPushButton, 
                             QTextEdit, QLabel, QGroupBox, QSpinBox, QDoubleSpinBox,
-                            QLineEdit, QCheckBox, QMessageBox)
-from PyQt6.QtCore import QTimer, Qt, pyqtSignal
+                            QLineEdit, QCheckBox, QMessageBox, QSlider)
+from PyQt6.QtCore import QTimer, Qt, QSize, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from backend_client import BackendClient
 from typing import List
+
+class DeviceScanner(QThread):
+    devices_found = pyqtSignal(list)
+    error_occurred = pyqtSignal(str)
+    
+    def __init__(self, client):
+        super().__init__()
+        self.client = client
+    
+    def run(self):
+        try:
+            devices = self.client.list_devices()
+            self.devices_found.emit(devices)
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+class CommandSender(QThread):
+    command_sent = pyqtSignal(bool, str)
+    
+    def __init__(self, client, cmd_type, **kwargs):
+        super().__init__()
+        self.client = client
+        self.cmd_type = cmd_type
+        self.kwargs = kwargs
+    
+    def run(self):
+        try:
+            success = self.client.send_command(self.cmd_type, **self.kwargs)
+            self.command_sent.emit(success, self.cmd_type)
+        except Exception as e:
+            self.command_sent.emit(False, f"{self.cmd_type} error: {str(e)}")
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -14,6 +45,9 @@ class MainWindow(QMainWindow):
         self.client = BackendClient()
         self.broadcast_mode = False
         self.selected_devices = []
+        self.scanner = DeviceScanner(self.client)
+        self.scanner.devices_found.connect(self.update_device_table)
+        self.scanner.error_occurred.connect(self.handle_scanner_error)
         
         self.setWindowTitle("MirrorSync Controller")
         self.setGeometry(100, 100, 1200, 800)
@@ -29,10 +63,7 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        layout = QHBoxLayout(central_widget)
-        
-        # Left panel - Device list and controls
-        left_panel = QVBoxLayout()
+        main_layout = QVBoxLayout(central_widget)
         
         # Device table
         device_group = QGroupBox("Connected Devices")
@@ -41,136 +72,83 @@ class MainWindow(QMainWindow):
         self.device_table = QTableWidget()
         self.device_table.setColumnCount(5)
         self.device_table.setHorizontalHeaderLabels(
-            ["Serial", "Model", "Status", "Agent", "Actions"])
+            ["Serial", "Model", "Status", "Agent", "Mirror"])
         self.device_table.itemSelectionChanged.connect(self.on_device_selection_changed)
         device_layout.addWidget(self.device_table)
         
-        # Refresh button
-        refresh_btn = QPushButton("Refresh Devices")
+        refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self.refresh_devices)
         device_layout.addWidget(refresh_btn)
         
-        left_panel.addWidget(device_group)
+        main_layout.addWidget(device_group, 2)
         
         # Control panel
-        control_group = QGroupBox("Control Panel")
+        control_group = QGroupBox("Controls")
         control_layout = QVBoxLayout(control_group)
         
-        # Broadcast mode
-        self.broadcast_checkbox = QCheckBox("Broadcast Mode (All Devices)")
+        self.broadcast_checkbox = QCheckBox("Broadcast Mode")
         self.broadcast_checkbox.toggled.connect(self.toggle_broadcast_mode)
         control_layout.addWidget(self.broadcast_checkbox)
         
-        # Tap controls
+        # Tap with sliders
         tap_layout = QHBoxLayout()
         tap_layout.addWidget(QLabel("Tap X:"))
-        self.tap_x = QDoubleSpinBox()
-        self.tap_x.setRange(0, 1)
-        self.tap_x.setSingleStep(0.1)
-        self.tap_x.setValue(0.5)
-        tap_layout.addWidget(self.tap_x)
+        self.tap_x_slider = QSlider(Qt.Orientation.Horizontal)
+        self.tap_x_slider.setRange(0, 100)
+        self.tap_x_slider.setValue(50)
+        tap_layout.addWidget(self.tap_x_slider)
         
         tap_layout.addWidget(QLabel("Y:"))
-        self.tap_y = QDoubleSpinBox()
-        self.tap_y.setRange(0, 1)
-        self.tap_y.setSingleStep(0.1)
-        self.tap_y.setValue(0.5)
-        tap_layout.addWidget(self.tap_y)
+        self.tap_y_slider = QSlider(Qt.Orientation.Horizontal)
+        self.tap_y_slider.setRange(0, 100)
+        self.tap_y_slider.setValue(50)
+        tap_layout.addWidget(self.tap_y_slider)
         
-        tap_btn = QPushButton("Send Tap")
+        tap_btn = QPushButton("Tap")
         tap_btn.clicked.connect(self.send_tap)
         tap_layout.addWidget(tap_btn)
-        
         control_layout.addLayout(tap_layout)
         
-        # Swipe controls
-        swipe_layout = QVBoxLayout()
-        swipe_coords = QHBoxLayout()
-        swipe_coords.addWidget(QLabel("From X:"))
-        self.swipe_x1 = QDoubleSpinBox()
-        self.swipe_x1.setRange(0, 1)
-        self.swipe_x1.setSingleStep(0.1)
-        self.swipe_x1.setValue(0.2)
-        swipe_coords.addWidget(self.swipe_x1)
+        # Swipe
+        swipe_layout = QHBoxLayout()
+        swipe_layout.addWidget(QLabel("Swipe X1:"))
+        self.swipe_x1_slider = QSlider(Qt.Orientation.Horizontal)
+        self.swipe_x1_slider.setRange(0, 100)
+        self.swipe_x1_slider.setValue(20)
+        swipe_layout.addWidget(self.swipe_x1_slider)
         
-        swipe_coords.addWidget(QLabel("Y:"))
-        self.swipe_y1 = QDoubleSpinBox()
-        self.swipe_y1.setRange(0, 1)
-        self.swipe_y1.setSingleStep(0.1)
-        self.swipe_y1.setValue(0.5)
-        swipe_coords.addWidget(self.swipe_y1)
+        swipe_layout.addWidget(QLabel("X2:"))
+        self.swipe_x2_slider = QSlider(Qt.Orientation.Horizontal)
+        self.swipe_x2_slider.setRange(0, 100)
+        self.swipe_x2_slider.setValue(80)
+        swipe_layout.addWidget(self.swipe_x2_slider)
         
-        swipe_coords.addWidget(QLabel("To X:"))
-        self.swipe_x2 = QDoubleSpinBox()
-        self.swipe_x2.setRange(0, 1)
-        self.swipe_x2.setSingleStep(0.1)
-        self.swipe_x2.setValue(0.8)
-        swipe_coords.addWidget(self.swipe_x2)
-        
-        swipe_coords.addWidget(QLabel("Y:"))
-        self.swipe_y2 = QDoubleSpinBox()
-        self.swipe_y2.setRange(0, 1)
-        self.swipe_y2.setSingleStep(0.1)
-        self.swipe_y2.setValue(0.5)
-        swipe_coords.addWidget(self.swipe_y2)
-        
-        swipe_layout.addLayout(swipe_coords)
-        
-        swipe_duration = QHBoxLayout()
-        swipe_duration.addWidget(QLabel("Duration (ms):"))
-        self.swipe_duration = QSpinBox()
-        self.swipe_duration.setRange(100, 5000)
-        self.swipe_duration.setValue(500)
-        swipe_duration.addWidget(self.swipe_duration)
-        
-        swipe_btn = QPushButton("Send Swipe")
+        swipe_btn = QPushButton("Swipe")
         swipe_btn.clicked.connect(self.send_swipe)
-        swipe_duration.addWidget(swipe_btn)
-        
-        swipe_layout.addLayout(swipe_duration)
+        swipe_layout.addWidget(swipe_btn)
         control_layout.addLayout(swipe_layout)
         
-        # Text input
+        # Text
         text_layout = QHBoxLayout()
         text_layout.addWidget(QLabel("Text:"))
         self.text_input = QLineEdit()
         text_layout.addWidget(self.text_input)
-        
-        text_btn = QPushButton("Send Text")
+        text_btn = QPushButton("Send")
         text_btn.clicked.connect(self.send_text)
         text_layout.addWidget(text_btn)
-        
         control_layout.addLayout(text_layout)
         
-        left_panel.addWidget(control_group)
+        main_layout.addWidget(control_group, 1)
         
-        # Right panel - Log
-        right_panel = QVBoxLayout()
-        
+        # Log
         log_group = QGroupBox("Log")
         log_layout = QVBoxLayout(log_group)
-        
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setFont(QFont("Consolas", 9))
+        self.log_text.setFont(QFont("Consolas", 8))
+        self.log_text.setMaximumHeight(150)
         log_layout.addWidget(self.log_text)
-        
-        clear_log_btn = QPushButton("Clear Log")
-        clear_log_btn.clicked.connect(self.log_text.clear)
-        log_layout.addWidget(clear_log_btn)
-        
-        right_panel.addWidget(log_group)
-        
-        # Add panels to main layout
-        left_widget = QWidget()
-        left_widget.setLayout(left_panel)
-        left_widget.setMaximumWidth(600)
-        
-        right_widget = QWidget()
-        right_widget.setLayout(right_panel)
-        
-        layout.addWidget(left_widget)
-        layout.addWidget(right_widget)
+        main_layout.addWidget(log_group, 1)
     
     def setup_timer(self):
         self.timer = QTimer()
@@ -178,24 +156,31 @@ class MainWindow(QMainWindow):
         self.timer.start(5000)  # Refresh every 5 seconds
     
     def log_message(self, message: str):
-        self.log_text.append(f"[{QTimer().remainingTime()}] {message}")
+        from datetime import datetime
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.log_text.append(f"[{ts}] {message}")
     
     def refresh_devices(self):
-        devices = self.client.list_devices()
+        if not self.scanner.isRunning():
+            self.scanner.start()
+    
+    def update_device_table(self, devices):
         self.device_table.setRowCount(len(devices))
         
         for i, device in enumerate(devices):
             self.device_table.setItem(i, 0, QTableWidgetItem(device['serial']))
             self.device_table.setItem(i, 1, QTableWidgetItem(device['model']))
             self.device_table.setItem(i, 2, QTableWidgetItem(device['status']))
-            
             agent_status = "✓" if device['agent_connected'] else "✗"
             self.device_table.setItem(i, 3, QTableWidgetItem(agent_status))
             
-            # Action buttons
             mirror_btn = QPushButton("Mirror")
+            mirror_btn.setMaximumWidth(80)
             mirror_btn.clicked.connect(lambda checked, s=device['serial']: self.start_mirror(s))
             self.device_table.setCellWidget(i, 4, mirror_btn)
+    
+    def handle_scanner_error(self, error):
+        self.log_message(f"Scanner error: {error}")
     
     def on_device_selection_changed(self):
         if not self.broadcast_mode:
@@ -221,35 +206,41 @@ class MainWindow(QMainWindow):
     
     def send_tap(self):
         targets = self.get_target_devices()
-        success = self.client.send_command("TAP", self.tap_x.value(), self.tap_y.value(), 
-                                         target_devices=targets)
-        status = "✓" if success else "✗"
-        self.log_message(f"{status} Tap sent to {len(targets) if targets else 'all'} devices")
+        x = self.tap_x_slider.value() / 100.0
+        y = self.tap_y_slider.value() / 100.0
+        
+        sender = CommandSender(self.client, "TAP", x=x, y=y, target_devices=targets)
+        sender.command_sent.connect(lambda success, cmd: self.log_message(
+            f"{'✓' if success else '✗'} Tap ({x:.2f}, {y:.2f})"))
+        sender.start()
     
     def send_swipe(self):
         targets = self.get_target_devices()
-        success = self.client.send_command("SWIPE", 
-                                         self.swipe_x1.value(), self.swipe_y1.value(),
-                                         self.swipe_x2.value(), self.swipe_y2.value(),
-                                         self.swipe_duration.value(),
-                                         target_devices=targets)
-        status = "✓" if success else "✗"
-        self.log_message(f"{status} Swipe sent to {len(targets) if targets else 'all'} devices")
+        x1 = self.swipe_x1_slider.value() / 100.0
+        x2 = self.swipe_x2_slider.value() / 100.0
+        
+        sender = CommandSender(self.client, "SWIPE", x=x1, y=0.5, end_x=x2, end_y=0.5, 
+                              duration_ms=500, target_devices=targets)
+        sender.command_sent.connect(lambda success, cmd: self.log_message(
+            f"{'✓' if success else '✗'} Swipe ({x1:.2f} → {x2:.2f})"))
+        sender.start()
     
     def send_text(self):
         text = self.text_input.text()
         if not text:
             return
-            
         targets = self.get_target_devices()
-        success = self.client.send_command("TEXT", text=text, target_devices=targets)
-        status = "✓" if success else "✗"
-        self.log_message(f"{status} Text '{text}' sent to {len(targets) if targets else 'all'} devices")
+        
+        sender = CommandSender(self.client, "TEXT", text=text, target_devices=targets)
+        sender.command_sent.connect(lambda success, cmd: self.log_message(
+            f"{'✓' if success else '✗'} Text: {text}"))
+        sender.start()
+        self.text_input.clear()
     
     def start_mirror(self, serial: str):
         success = self.client.start_mirror(serial)
         status = "✓" if success else "✗"
-        self.log_message(f"{status} Mirror started for device {serial}")
+        self.log_message(f"{status} Mirror: {serial}")
     
     def closeEvent(self, event):
         self.client.disconnect()

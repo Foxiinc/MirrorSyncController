@@ -17,7 +17,7 @@ class EnhancedMainWindow(QMainWindow):
         self.selected_devices = []
         self.phone_screens = {}
         
-        self.setWindowTitle("MirrorSync Controller - Enhanced")
+        self.setWindowTitle("MirrorSync Controller")
         self.setGeometry(100, 100, 1600, 900)
         
         self.setup_ui()
@@ -33,13 +33,11 @@ class EnhancedMainWindow(QMainWindow):
         
         layout = QHBoxLayout(central_widget)
         
-        # Левая панель - управление
         left_panel = self.create_control_panel()
         left_widget = QWidget()
         left_widget.setLayout(left_panel)
         left_widget.setMaximumWidth(400)
         
-        # Правая панель - экраны телефонов
         right_panel = self.create_phone_screens_panel()
         
         layout.addWidget(left_widget)
@@ -48,7 +46,6 @@ class EnhancedMainWindow(QMainWindow):
     def create_control_panel(self):
         layout = QVBoxLayout()
         
-        # Список устройств
         device_group = QGroupBox("Connected Devices")
         device_layout = QVBoxLayout(device_group)
         
@@ -58,51 +55,43 @@ class EnhancedMainWindow(QMainWindow):
         self.device_table.itemSelectionChanged.connect(self.on_device_selection_changed)
         device_layout.addWidget(self.device_table)
         
-        refresh_btn = QPushButton("🔄 Refresh Devices")
+        refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self.refresh_devices)
         device_layout.addWidget(refresh_btn)
         
         layout.addWidget(device_group)
         
-        # Режим управления
-        control_group = QGroupBox("Control Mode")
+        control_group = QGroupBox("Control")
         control_layout = QVBoxLayout(control_group)
         
-        self.broadcast_checkbox = QCheckBox("📡 Broadcast Mode (All Devices)")
+        self.broadcast_checkbox = QCheckBox("Broadcast Mode")
         self.broadcast_checkbox.toggled.connect(self.toggle_broadcast_mode)
         control_layout.addWidget(self.broadcast_checkbox)
         
-        # Быстрые команды
         quick_layout = QHBoxLayout()
         
-        home_btn = QPushButton("🏠 Home")
+        home_btn = QPushButton("Home")
         home_btn.clicked.connect(lambda: self.send_quick_command("HOME"))
         quick_layout.addWidget(home_btn)
         
-        back_btn = QPushButton("⬅️ Back")
+        back_btn = QPushButton("Back")
         back_btn.clicked.connect(lambda: self.send_quick_command("BACK"))
         quick_layout.addWidget(back_btn)
         
-        menu_btn = QPushButton("☰ Menu")
-        menu_btn.clicked.connect(lambda: self.send_quick_command("MENU"))
-        quick_layout.addWidget(menu_btn)
-        
         control_layout.addLayout(quick_layout)
         
-        # Текстовый ввод
         text_layout = QHBoxLayout()
         text_layout.addWidget(QLabel("Text:"))
         self.text_input = QLineEdit()
         text_layout.addWidget(self.text_input)
         
-        text_btn = QPushButton("📝 Send")
+        text_btn = QPushButton("Send")
         text_btn.clicked.connect(self.send_text)
         text_layout.addWidget(text_btn)
         
         control_layout.addLayout(text_layout)
         layout.addWidget(control_group)
         
-        # Лог
         log_group = QGroupBox("Log")
         log_layout = QVBoxLayout(log_group)
         
@@ -112,7 +101,7 @@ class EnhancedMainWindow(QMainWindow):
         self.log_text.setMaximumHeight(200)
         log_layout.addWidget(self.log_text)
         
-        clear_log_btn = QPushButton("🗑️ Clear Log")
+        clear_log_btn = QPushButton("Clear")
         clear_log_btn.clicked.connect(self.log_text.clear)
         log_layout.addWidget(clear_log_btn)
         
@@ -121,11 +110,9 @@ class EnhancedMainWindow(QMainWindow):
         return layout
     
     def create_phone_screens_panel(self):
-        # Создаем табы для экранов телефонов
         self.phone_tabs = QTabWidget()
         self.phone_tabs.setTabPosition(QTabWidget.TabPosition.North)
         
-        # Скролл область для множественных экранов
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.phone_tabs)
         scroll_area.setWidgetResizable(True)
@@ -160,11 +147,9 @@ class EnhancedMainWindow(QMainWindow):
             agent_status = "✓" if device['agent_connected'] else "✗"
             self.device_table.setItem(i, 3, QTableWidgetItem(agent_status))
             
-            # Добавляем новые экраны
             if serial not in self.phone_screens:
                 self.add_phone_screen(serial)
         
-        # Удаляем отключенные устройства
         for serial in current_serials - new_serials:
             self.remove_phone_screen(serial)
     
@@ -175,9 +160,9 @@ class EnhancedMainWindow(QMainWindow):
         phone_screen.key_signal.connect(lambda key_code, s=serial: self.handle_screen_key(s, key_code))
         
         self.phone_screens[serial] = phone_screen
-        self.phone_tabs.addTab(phone_screen, f"📱 {serial[-4:]}")
+        self.phone_tabs.addTab(phone_screen, f"Device {serial[-4:]}")
         
-        self.log_message(f"Added screen for device {serial}")
+        self.log_message(f"Added screen for {serial}")
     
     def remove_phone_screen(self, serial):
         if serial in self.phone_screens:
@@ -186,39 +171,27 @@ class EnhancedMainWindow(QMainWindow):
             if index >= 0:
                 self.phone_tabs.removeTab(index)
             del self.phone_screens[serial]
-            self.log_message(f"Removed screen for device {serial}")
+            self.log_message(f"Removed screen for {serial}")
     
     def handle_screen_tap(self, serial, x, y):
-        if self.broadcast_mode:
-            targets = []
-        else:
-            targets = [serial]
-            
+        targets = [] if self.broadcast_mode else [serial]
         success = self.client.send_command("TAP", x, y, target_devices=targets)
         status = "✓" if success else "✗"
-        self.log_message(f"{status} Tap ({x:.2f}, {y:.2f}) on {serial if not self.broadcast_mode else 'all devices'}")
+        self.log_message(f"{status} Tap ({x:.2f}, {y:.2f})")
     
     def handle_screen_swipe(self, serial, x1, y1, x2, y2):
-        if self.broadcast_mode:
-            targets = []
-        else:
-            targets = [serial]
-            
+        targets = [] if self.broadcast_mode else [serial]
         success = self.client.send_command("SWIPE", x1, y1, x2, y2, 500, target_devices=targets)
         status = "✓" if success else "✗"
-        self.log_message(f"{status} Swipe ({x1:.2f},{y1:.2f})→({x2:.2f},{y2:.2f}) on {serial if not self.broadcast_mode else 'all devices'}")
+        self.log_message(f"{status} Swipe ({x1:.2f},{y1:.2f})→({x2:.2f},{y2:.2f})")
     
     def handle_screen_key(self, serial, key_code):
-        if self.broadcast_mode:
-            targets = []
-        else:
-            targets = [serial]
-            
+        targets = [] if self.broadcast_mode else [serial]
         success = self.client.send_command("KEY", key_code=key_code, target_devices=targets)
         status = "✓" if success else "✗"
-        key_names = {3: "HOME", 4: "BACK", 82: "MENU"}
+        key_names = {3: "HOME", 4: "BACK"}
         key_name = key_names.get(key_code, f"KEY_{key_code}")
-        self.log_message(f"{status} {key_name} sent to {serial if not self.broadcast_mode else 'all devices'}")
+        self.log_message(f"{status} {key_name}")
     
     def on_device_selection_changed(self):
         if not self.broadcast_mode:
@@ -233,9 +206,9 @@ class EnhancedMainWindow(QMainWindow):
         self.broadcast_mode = checked
         if checked:
             self.selected_devices = []
-            self.log_message("📡 Broadcast mode enabled")
+            self.log_message("Broadcast mode ON")
         else:
-            self.log_message("📱 Individual device mode enabled")
+            self.log_message("Broadcast mode OFF")
     
     def send_quick_command(self, cmd_type):
         targets = [] if self.broadcast_mode else self.selected_devices
@@ -244,14 +217,11 @@ class EnhancedMainWindow(QMainWindow):
             success = self.client.send_command("KEY", key_code=3, target_devices=targets)
         elif cmd_type == "BACK":
             success = self.client.send_command("KEY", key_code=4, target_devices=targets)
-        elif cmd_type == "MENU":
-            success = self.client.send_command("KEY", key_code=82, target_devices=targets)
         else:
             return
             
         status = "✓" if success else "✗"
-        device_count = len(targets) if targets else "all"
-        self.log_message(f"{status} {cmd_type} sent to {device_count} devices")
+        self.log_message(f"{status} {cmd_type}")
     
     def send_text(self):
         text = self.text_input.text()
@@ -261,8 +231,7 @@ class EnhancedMainWindow(QMainWindow):
         targets = [] if self.broadcast_mode else self.selected_devices
         success = self.client.send_command("TEXT", text=text, target_devices=targets)
         status = "✓" if success else "✗"
-        device_count = len(targets) if targets else "all"
-        self.log_message(f"{status} Text '{text}' sent to {device_count} devices")
+        self.log_message(f"{status} Text: {text}")
         self.text_input.clear()
     
     def closeEvent(self, event):

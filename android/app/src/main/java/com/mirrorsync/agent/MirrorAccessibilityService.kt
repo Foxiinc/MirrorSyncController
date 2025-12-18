@@ -7,6 +7,8 @@ import android.graphics.Path
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import kotlinx.coroutines.*
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class MirrorAccessibilityService : AccessibilityService() {
     
@@ -16,36 +18,54 @@ class MirrorAccessibilityService : AccessibilityService() {
     }
     
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var commandQueue: CommandQueue? = null
+    private lateinit var coordinateNormalizer: CoordinateNormalizer
     
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.i(TAG, "Accessibility service connected")
         
-        // Подавляем системные предупреждения
         try {
-            val resolver = contentResolver
-            android.provider.Settings.Global.putString(resolver, "hidden_api_policy", "1")
-            android.provider.Settings.Global.putString(resolver, "development_settings_enabled", "0")
+            coordinateNormalizer = CoordinateNormalizer(this)
+            val screenInfo = coordinateNormalizer.getScreenInfo()
+            InAppLogger.i(TAG, "Screen: ${screenInfo.widthPixels}x${screenInfo.heightPixels}")
         } catch (e: Exception) {
-            Log.w(TAG, "Could not suppress warnings: ${e.message}")
+            InAppLogger.e(TAG, "Failed to init CoordinateNormalizer", e)
         }
         
-        // Start TCP server
-        val intent = Intent(this, TcpServerService::class.java)
-        startForegroundService(intent)
+        try {
+            commandQueue = CommandQueue(this, serviceScope)
+            InAppLogger.i(TAG, "CommandQueue initialized")
+        } catch (e: Exception) {
+            InAppLogger.e(TAG, "Failed to init CommandQueue", e)
+        }
+        
+        InAppLogger.i(TAG, "Accessibility service connected and ready")
+        
+        try {
+            val intent = Intent(this, TcpServerService::class.java)
+            startForegroundService(intent)
+            InAppLogger.i(TAG, "TCP server started")
+        } catch (e: Exception) {
+            InAppLogger.e(TAG, "Failed to start TCP server", e)
+        }
     }
     
     override fun onDestroy() {
         super.onDestroy()
-        instance = null
-        serviceScope.cancel()
         
-        // Stop TCP server
-        val intent = Intent(this, TcpServerService::class.java)
-        stopService(intent)
-        
-        Log.i(TAG, "Accessibility service destroyed")
+        try {
+            commandQueue = null
+            serviceScope.cancel()
+            
+            val intent = Intent(this, TcpServerService::class.java)
+            stopService(intent)
+            
+            instance = null
+            InAppLogger.i(TAG, "Service destroyed")
+        } catch (e: Exception) {
+            InAppLogger.e(TAG, "Error destroying service", e)
+        }
     }
     
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -57,30 +77,72 @@ class MirrorAccessibilityService : AccessibilityService() {
     }
     
     fun executeCommand(command: DeviceCommand): DeviceResponse {
+        val startTime = System.currentTimeMillis()
+        
         return try {
             val currentTime = System.currentTimeMillis()
             val delayMs = command.execTimeDeviceMs - currentTime
             
-            if (delayMs > 0) {
+            if (delayMs > 0 && delayMs < 10000) {
+                Log.d(TAG, "Waiting ${delayMs}ms before executing ${command.type}")
                 Thread.sleep(delayMs)
             }
             
-            val success = when (command.type) {
-                "TAP" -> performTap(command.x, command.y)
-                "SWIPE" -> performSwipe(command.x, command.y, command.endX, command.endY, command.durationMs)
-                "TEXT" -> performText(command.text ?: "")
-                "KEY" -> performKey(command.keyCode)
-                else -> false
+            val success = try {
+                when (command.type) {
+                    "TAP" -> {
+                        val validation = GestureValidator.validateTap(command.x, command.y)
+                        if (validation is GestureValidator.ValidationResult.Error) {
+                            InAppLogger.e(TAG, "Invalid TAP: ${validation.message}")
+                            false
+                        } else {
+                            InAppLogger.d(TAG, "TAP (${command.x}, ${command.y})")
+                            performTap(command.x, command.y)
+                        }
+                    }
+                    "SWIPE" -> {
+                        val validation = GestureValidator.validateSwipe(
+                            command.x, command.y, command.endX, command.endY, command.durationMs
+                        )
+                        if (validation is GestureValidator.ValidationResult.Error) {
+                            InAppLogger.e(TAG, "Invalid SWIPE: ${validation.message}")
+                            false
+                        } else {
+                            InAppLogger.d(TAG, "SWIPE (${command.x},${command.y})->(${command.endX},${command.endY})")
+                            performSwipe(command.x, command.y, command.endX, command.endY, command.durationMs)
+                        }
+                    }
+                    "TEXT" -> {
+                        Log.d(TAG, "Executing TEXT: ${command.text}")
+                        performText(command.text ?: "")
+                    }
+                    "KEY" -> {
+                        Log.d(TAG, "Executing KEY: ${command.keyCode}")
+                        performKey(command.keyCode)
+                    }
+                    else -> {
+                        Log.w(TAG, "Unknown command type: ${command.type}")
+                        false
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error executing ${command.type}: ${e.message}", e)
+                false
             }
+            
+            val executedAt = System.currentTimeMillis()
+            val totalTime = executedAt - startTime
+            
+            InAppLogger.i(TAG, "${command.type} seq=${command.sequence} ${if (success) "✓" else "✗"} ${totalTime}ms")
             
             DeviceResponse(
                 sequence = command.sequence,
                 success = success,
-                message = if (success) "Command executed" else "Command failed",
-                executedAtMs = System.currentTimeMillis()
+                message = if (success) "Executed in ${totalTime}ms" else "Failed",
+                executedAtMs = executedAt
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error executing command", e)
+            InAppLogger.e(TAG, "Critical error in executeCommand", e)
             DeviceResponse(
                 sequence = command.sequence,
                 success = false,
@@ -91,51 +153,148 @@ class MirrorAccessibilityService : AccessibilityService() {
     }
     
     private fun performTap(x: Float, y: Float): Boolean {
-        val displayMetrics = resources.displayMetrics
-        val screenX = (x * displayMetrics.widthPixels).toInt()
-        val screenY = (y * displayMetrics.heightPixels).toInt()
+        // Проверка валидности нормализованных координат
+        if (!coordinateNormalizer.isValidNormalized(x, y)) {
+            Log.w(TAG, "Invalid normalized coordinates: ($x, $y)")
+            return false
+        }
+        
+        // Преобразование нормализованных координат в пиксели
+        val (screenX, screenY) = coordinateNormalizer.normalizedToPixels(x, y)
+        
+        Log.d(TAG, "Tap: normalized($x, $y) -> pixels($screenX, $screenY)")
         
         val path = Path().apply {
-            moveTo(screenX.toFloat(), screenY.toFloat())
+            moveTo(screenX, screenY)
         }
         
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
             .build()
         
-        return dispatchGesture(gesture, null, null)
+        var result = false
+        val latch = CountDownLatch(1)
+        
+        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "Tap completed at ($screenX, $screenY)")
+                result = true
+                latch.countDown()
+            }
+            
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "Tap cancelled at ($screenX, $screenY)")
+                result = false
+                latch.countDown()
+            }
+        }, null)
+        
+        if (!dispatched) {
+            Log.e(TAG, "Failed to dispatch tap gesture")
+            return false
+        }
+        
+        val completed = latch.await(1000, TimeUnit.MILLISECONDS)
+        if (!completed) {
+            Log.w(TAG, "Tap gesture timeout")
+        }
+        
+        return result
     }
     
     private fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Int): Boolean {
-        val displayMetrics = resources.displayMetrics
-        val startX = (x1 * displayMetrics.widthPixels).toInt()
-        val startY = (y1 * displayMetrics.heightPixels).toInt()
-        val endX = (x2 * displayMetrics.widthPixels).toInt()
-        val endY = (y2 * displayMetrics.heightPixels).toInt()
+        // Проверка валидности координат
+        if (!coordinateNormalizer.isValidNormalized(x1, y1) || 
+            !coordinateNormalizer.isValidNormalized(x2, y2)) {
+            Log.w(TAG, "Invalid swipe coordinates: ($x1,$y1) -> ($x2,$y2)")
+            return false
+        }
+        
+        // Преобразование координат
+        val (startX, startY) = coordinateNormalizer.normalizedToPixels(x1, y1)
+        val (endX, endY) = coordinateNormalizer.normalizedToPixels(x2, y2)
+        
+        Log.d(TAG, "Swipe: ($x1,$y1)->($x2,$y2) pixels: ($startX,$startY)->($endX,$endY)")
+        
+        val duration = durationMs.coerceIn(100, 5000).toLong()
         
         val path = Path().apply {
-            moveTo(startX.toFloat(), startY.toFloat())
-            lineTo(endX.toFloat(), endY.toFloat())
+            moveTo(startX, startY)
+            lineTo(endX, endY)
         }
         
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, durationMs.toLong()))
+            .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
             .build()
         
-        return dispatchGesture(gesture, null, null)
+        var result = false
+        val latch = CountDownLatch(1)
+        
+        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "Swipe completed: ($startX,$startY)->($endX,$endY)")
+                result = true
+                latch.countDown()
+            }
+            
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "Swipe cancelled: ($startX,$startY)->($endX,$endY)")
+                result = false
+                latch.countDown()
+            }
+        }, null)
+        
+        if (!dispatched) {
+            Log.e(TAG, "Failed to dispatch swipe gesture")
+            return false
+        }
+        
+        val completed = latch.await(2000, TimeUnit.MILLISECONDS)
+        if (!completed) {
+            Log.w(TAG, "Swipe gesture timeout")
+        }
+        
+        return result
     }
     
     private fun performText(text: String): Boolean {
-        // Text input would require additional implementation
-        // For now, return true as placeholder
-        Log.i(TAG, "Text input: $text")
-        return true
+        return try {
+            // Для ввода текста нужно использовать IME или другой метод
+            // Пока просто логируем
+            Log.i(TAG, "Text input requested: $text (not implemented)")
+            false // Возвращаем false, так как не реализовано
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in performText", e)
+            false
+        }
     }
     
     private fun performKey(keyCode: Int): Boolean {
-        // Key press would require additional implementation
-        // For now, return true as placeholder
-        Log.i(TAG, "Key press: $keyCode")
-        return true
+        return try {
+            Log.i(TAG, "Performing key press: $keyCode")
+            val result = when (keyCode) {
+                3 -> {
+                    Log.d(TAG, "Sending HOME action")
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                }
+                4 -> {
+                    Log.d(TAG, "Sending BACK action")
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                }
+                82, 187 -> {
+                    Log.d(TAG, "Sending RECENTS action")
+                    performGlobalAction(GLOBAL_ACTION_RECENTS)
+                }
+                else -> {
+                    Log.w(TAG, "Unsupported key code: $keyCode")
+                    false
+                }
+            }
+            Log.i(TAG, "Key action result: $result")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "Error performing key action: ${e.message}", e)
+            false
+        }
     }
 }

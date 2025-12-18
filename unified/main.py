@@ -8,17 +8,15 @@ import sys
 import os
 import subprocess
 import time
+import socket
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
-from PyQt6.QtCore import QTimer
 
 # Определяем базовый путь для ресурсов
 if getattr(sys, 'frozen', False):
-    # Если запущено из exe
     base_path = Path(sys._MEIPASS)
 else:
-    # Если запущено из исходников
     base_path = Path(__file__).parent
 
 # Добавляем пути для импорта
@@ -28,25 +26,40 @@ from gui.enhanced_main_window import EnhancedMainWindow as MainWindow
 class UnifiedApp:
     def __init__(self):
         self.backend_process = None
-        # Определяем путь к Backend в зависимости от ОС
-        if os.name == 'nt':  # Windows
-            self.backend_path = base_path / "backend" / "MirrorSync.Backend.exe"
-        else:  # Linux/Unix
-            self.backend_path = base_path.parent / "src" / "MirrorSync.Backend" / "bin" / "Release" / "net6.0" / "linux-x64" / "publish" / "MirrorSync.Backend"
+        self.backend_port = 50051
         
+        if os.name == 'nt':
+            self.backend_path = base_path / "backend" / "MirrorSync.Backend.exe"
+        else:
+            self.backend_path = base_path / "backend" / "MirrorSync.Backend"
+    
+    def is_port_open(self, port: int) -> bool:
+        """Check if port is already in use"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('127.0.0.1', port))
+        sock.close()
+        return result == 0
+    
     def start_backend(self):
         """Запускает Backend процесс"""
         try:
-            if self.backend_path.exists():
-                self.backend_process = subprocess.Popen(
-                    [str(self.backend_path)],
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                print(f"Backend started with PID: {self.backend_process.pid}")
+            # Check if already running
+            if self.is_port_open(self.backend_port):
+                print(f"Backend already running on port {self.backend_port}")
                 return True
-            else:
+            
+            if not self.backend_path.exists():
                 print(f"Backend not found at: {self.backend_path}")
                 return False
+            
+            self.backend_process = subprocess.Popen(
+                [str(self.backend_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+            )
+            print(f"Backend started with PID: {self.backend_process.pid}")
+            return True
         except Exception as e:
             print(f"Failed to start backend: {e}")
             return False
@@ -64,17 +77,11 @@ class UnifiedApp:
     
     def wait_for_backend(self, timeout=10):
         """Ждет запуска Backend"""
-        import socket
-        for _ in range(timeout * 2):
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                result = sock.connect_ex(('localhost', 50051))
-                sock.close()
-                if result == 0:
-                    return True
-            except:
-                pass
-            time.sleep(0.5)
+        for i in range(timeout * 10):
+            if self.is_port_open(self.backend_port):
+                time.sleep(0.2)
+                return True
+            time.sleep(0.1)
         return False
     
     def run(self):
@@ -83,18 +90,27 @@ class UnifiedApp:
         
         # Запускаем Backend
         if not self.start_backend():
-            QMessageBox.critical(None, "Error", "Failed to start backend service")
+            QMessageBox.critical(None, "Error", 
+                               "Failed to start backend service.\n"
+                               "Please ensure MirrorSync.Backend.exe is in the backend/ folder.")
             return 1
         
         # Ждем запуска Backend
         if not self.wait_for_backend():
-            QMessageBox.critical(None, "Error", "Backend service failed to start")
+            QMessageBox.critical(None, "Error", 
+                               "Backend service failed to start within 10 seconds.\n"
+                               "Please check the logs.")
             self.stop_backend()
             return 1
         
         # Запускаем GUI
-        window = MainWindow()
-        window.show()
+        try:
+            window = MainWindow()
+            window.show()
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"Failed to start GUI:\n{str(e)}")
+            self.stop_backend()
+            return 1
         
         # Обработчик закрытия
         def cleanup():

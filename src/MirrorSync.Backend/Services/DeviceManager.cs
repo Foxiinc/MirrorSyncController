@@ -12,6 +12,8 @@ public class DeviceManager
     private readonly AdbClient _adbClient;
     private readonly ILogger<DeviceManager> _logger;
     private int _nextPort = 4444;
+    private DateTime _lastScan = DateTime.MinValue;
+    private const int ScanIntervalMs = 5000;
 
     public DeviceManager(ILogger<DeviceManager> logger)
     {
@@ -20,52 +22,56 @@ public class DeviceManager
         
         try
         {
-            // Попробуем найти ADB в разных местах
-            var adbPaths = new[]
-            {
-                @"C:\platform-tools\adb.exe",
-                @"C:\Android\Sdk\platform-tools\adb.exe",
-                @"C:\Users\" + Environment.UserName + @"\AppData\Local\Android\Sdk\platform-tools\adb.exe",
-                "adb.exe", // В PATH
-                "adb" // Linux/Mac
-            };
-            
-            string? workingAdbPath = null;
-            foreach (var path in adbPaths)
-            {
-                if (File.Exists(path) || path.Contains("adb") && !path.Contains(@"C:\"))
-                {
-                    workingAdbPath = path;
-                    break;
-                }
-            }
-            
-            if (workingAdbPath == null)
-            {
-                _logger.LogWarning("ADB not found. Please install Android SDK Platform Tools.");
-                return;
-            }
-            
             if (!AdbServer.Instance.GetStatus().IsRunning)
             {
-                var server = new AdbServer();
-                server.StartServer(workingAdbPath, false);
-                _logger.LogInformation("ADB server started with path: {Path}", workingAdbPath);
-            }
-            else
-            {
-                _logger.LogInformation("ADB server already running");
+                var adbPath = FindAdbPath();
+                if (adbPath != null)
+                {
+                    var server = new AdbServer();
+                    server.StartServer(adbPath, false);
+                    _logger.LogInformation("ADB server started");
+                }
+                else
+                {
+                    _logger.LogWarning("ADB not found");
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to start ADB server: {Error}", ex.Message);
-            _logger.LogWarning("Device management will be limited without ADB");
+            _logger.LogError("Failed to start ADB: {Error}", ex.Message);
         }
+    }
+
+    private string? FindAdbPath()
+    {
+        var paths = new[]
+        {
+            @"C:\platform-tools\adb.exe",
+            @"C:\Android\Sdk\platform-tools\adb.exe",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
+                @"Android\Sdk\platform-tools\adb.exe"),
+            "adb.exe"
+        };
+
+        foreach (var path in paths)
+        {
+            if (File.Exists(path))
+                return path;
+        }
+        return null;
     }
 
     public async Task<List<AndroidDevice>> ScanDevicesAsync()
     {
+        // Кэширование - не сканируем чаще чем каждые 5 секунд
+        if ((DateTime.UtcNow - _lastScan).TotalMilliseconds < ScanIntervalMs)
+        {
+            return _devices.Values.ToList();
+        }
+
+        _lastScan = DateTime.UtcNow;
+
         try
         {
             var devices = _adbClient.GetDevices();
@@ -88,9 +94,8 @@ public class DeviceManager
                         _adbClient.ExecuteRemoteCommand("getprop ro.product.model", device, receiver);
                         androidDevice.Model = receiver.ToString().Trim();
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        _logger.LogWarning("Failed to get model for {Serial}: {Error}", device.Serial, ex.Message);
                         androidDevice.Model = "Unknown";
                     }
                 }
@@ -104,7 +109,7 @@ public class DeviceManager
         catch (Exception ex)
         {
             _logger.LogError("Error scanning devices: {Error}", ex.Message);
-            return new List<AndroidDevice>();
+            return _devices.Values.ToList();
         }
     }
 
@@ -114,17 +119,13 @@ public class DeviceManager
         {
             var adbDevice = new DeviceData { Serial = device.Serial };
             
-            // Настраиваем port forwarding
             try
             {
-                // Простое port forwarding на фиксированный порт
                 _adbClient.CreateForward(adbDevice, "tcp:4444", "tcp:4444", false);
-                _logger.LogInformation("Port forwarding setup: {LocalPort} -> {DevicePort} for {Serial}", 
-                    device.Port, 4444, device.Serial);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Failed to create port forward for {Serial}: {Error}", device.Serial, ex.Message);
+                _logger.LogWarning("Port forward failed for {Serial}: {Error}", device.Serial, ex.Message);
             }
             
             if (!_connections.ContainsKey(device.Serial))
@@ -136,13 +137,13 @@ public class DeviceManager
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to setup port forward for {Serial}: {Error}", device.Serial, ex.Message);
+            _logger.LogError("Setup port forward failed for {Serial}: {Error}", device.Serial, ex.Message);
         }
     }
 
     public async Task<bool> SendCommandAsync(DeviceCommand command, List<string> targetDevices)
     {
-        var execTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 50; // 50ms delay
+        var execTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 50;
         command.ExecTimeDeviceMs = execTime;
 
         var tasks = new List<Task<bool>>();
@@ -155,6 +156,8 @@ public class DeviceManager
             }
         }
 
+        if (tasks.Count == 0) return false;
+        
         var results = await Task.WhenAll(tasks);
         return results.All(r => r);
     }
@@ -179,11 +182,11 @@ public class DeviceManager
             };
 
             device!.MirrorProcess = Process.Start(startInfo);
-            _logger.LogInformation("Started mirror for device {Serial}", serial);
+            _logger.LogInformation("Mirror started for {Serial}", serial);
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to start mirror for {Serial}: {Error}", serial, ex.Message);
+            _logger.LogError("Mirror failed for {Serial}: {Error}", serial, ex.Message);
         }
         
         await Task.CompletedTask;
@@ -194,9 +197,13 @@ public class DeviceManager
         var device = GetDevice(serial);
         if (device?.MirrorProcess != null)
         {
-            device.MirrorProcess.Kill();
+            try
+            {
+                device.MirrorProcess.Kill();
+            }
+            catch { }
             device.MirrorProcess = null;
-            _logger.LogInformation("Stopped mirror for device {Serial}", serial);
+            _logger.LogInformation("Mirror stopped for {Serial}", serial);
         }
     }
 }

@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MirrorSync Agent</string>
-    <string name="accessibility_service_description">Allows MirrorSync to perform gestures and control device remotely</string>
+    <string name="accessibility_service_description">Allows MirrorSync to perform gestures and control device remotely. Required for synchronized device control from PC.</string>
     <string name="service_running">MirrorSync Agent is running</string>
     <string name="service_stopped">MirrorSync Agent stopped</string>
     <string name="enable_accessibility">Please enable accessibility service in Settings</string>
+    <string name="restricted_settings_warning">For Android 13+, you must manually allow restricted settings in app info before enabling accessibility service.</string>
+    <string name="service_not_configured">Accessibility service is not properly configured</string>
 </resources>

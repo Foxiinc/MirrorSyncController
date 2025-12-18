@@ -4,6 +4,9 @@ obj/
 build/
 dist/
 out/
+*.spec
+__pycache__/
+.pyinstaller/
 
 # .NET
 *.dll
@@ -35,6 +38,8 @@ venv.bak/
 # Generated protobuf files
 gui/*_pb2.py
 gui/*_pb2_grpc.py
+unified/gui/*_pb2.py
+unified/gui/*_pb2_grpc.py
 
 # Android
 *.iml

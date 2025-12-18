@@ -5,40 +5,44 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.*
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 
-class TcpServerService : Service() {
+class TcpServerService : LifecycleService() {
     
     companion object {
         private const val TAG = "TcpServerService"
         private const val PORT = 4444
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "MirrorSyncChannel"
+        private const val SOCKET_TIMEOUT = 30000
     }
     
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var serverSocket: ServerSocket? = null
     private val gson = Gson()
+    private val activeClients = mutableListOf<Socket>()
     
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         startTcpServer()
+        InAppLogger.i(TAG, "TCP Service created")
     }
     
     override fun onDestroy() {
         super.onDestroy()
-        serviceScope.cancel()
+        activeClients.forEach { it.close() }
+        activeClients.clear()
         serverSocket?.close()
-        Log.i(TAG, "TCP server stopped")
+        InAppLogger.i(TAG, "TCP server stopped")
     }
-    
-    override fun onBind(intent: Intent?): IBinder? = null
     
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
@@ -59,66 +63,91 @@ class TcpServerService : Service() {
     }
     
     private fun startTcpServer() {
-        serviceScope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
-                serverSocket = ServerSocket(PORT)
-                Log.i(TAG, "TCP server started on port $PORT")
+                serverSocket = ServerSocket(PORT).apply {
+                    soTimeout = SOCKET_TIMEOUT
+                }
+                InAppLogger.i(TAG, "TCP server listening on port $PORT")
+                updateNotification("Listening on port $PORT")
                 
-                while (serviceScope.isActive) {
+                while (isActive) {
                     try {
                         val clientSocket = serverSocket?.accept()
                         if (clientSocket != null) {
+                            activeClients.add(clientSocket)
                             launch { handleClient(clientSocket) }
+                            updateNotification("${activeClients.size} client(s) connected")
                         }
+                    } catch (e: SocketTimeoutException) {
+                        // Timeout - продолжаем слушать
                     } catch (e: Exception) {
-                        if (serviceScope.isActive) {
-                            Log.e(TAG, "Error accepting client", e)
+                        if (isActive) {
+                            InAppLogger.e(TAG, "Error accepting client", e)
                         }
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error starting TCP server", e)
+                InAppLogger.e(TAG, "Error starting TCP server", e)
+                updateNotification("Error: ${e.message}")
             }
         }
     }
     
     private suspend fun handleClient(socket: Socket) {
         withContext(Dispatchers.IO) {
+            var reader: BufferedReader? = null
+            var writer: PrintWriter? = null
+            
             try {
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-                val writer = PrintWriter(socket.getOutputStream(), true)
+                socket.soTimeout = 60000 // 60 секунд таймаут для чтения
+                reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                writer = PrintWriter(socket.getOutputStream(), true)
                 
-                Log.i(TAG, "Client connected: ${socket.remoteSocketAddress}")
+                InAppLogger.i(TAG, "Client connected: ${socket.remoteSocketAddress}")
                 
-                while (socket.isConnected && !socket.isClosed) {
-                    val line = reader.readLine() ?: break
-                    
+                while (isActive && socket.isConnected && !socket.isClosed) {
                     try {
-                        if (line.contains("TIME_SYNC")) {
-                            handleTimeSync(line, writer)
-                        } else if (line.contains("PING")) {
-                            // Отвечаем на PING
-                            writer.println("{\"type\":\"PONG\",\"success\":true}")
-                        } else {
-                            val command = gson.fromJson(line, DeviceCommand::class.java)
-                            val response = executeCommand(command)
-                            writer.println(gson.toJson(response))
+                        val line = reader.readLine() ?: break
+                        
+                        when {
+                            line.contains("TIME_SYNC") -> handleTimeSync(line, writer)
+                            line.contains("PING") -> {
+                                writer.println("{\"type\":\"PONG\",\"success\":true}")
+                                InAppLogger.d(TAG, "PING -> PONG")
+                            }
+                            else -> {
+                                val command = gson.fromJson(line, DeviceCommand::class.java)
+                                val response = executeCommand(command)
+                                writer.println(gson.toJson(response))
+                            }
                         }
+                    } catch (e: SocketTimeoutException) {
+                        InAppLogger.w(TAG, "Socket timeout")
+                        break
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error processing command: $line", e)
+                        InAppLogger.e(TAG, "Error processing command", e)
                         val errorResponse = DeviceResponse(
                             sequence = 0,
                             success = false,
-                            message = "Parse error: ${e.message}"
+                            message = "Error: ${e.message}"
                         )
                         writer.println(gson.toJson(errorResponse))
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error handling client", e)
+                InAppLogger.e(TAG, "Error handling client", e)
             } finally {
-                socket.close()
-                Log.i(TAG, "Client disconnected")
+                try {
+                    reader?.close()
+                    writer?.close()
+                    socket.close()
+                    activeClients.remove(socket)
+                    updateNotification("${activeClients.size} client(s) connected")
+                } catch (e: Exception) {
+                    InAppLogger.e(TAG, "Error closing socket", e)
+                }
+                InAppLogger.i(TAG, "Client disconnected")
             }
         }
     }
@@ -126,14 +155,27 @@ class TcpServerService : Service() {
     private fun handleTimeSync(line: String, writer: PrintWriter) {
         try {
             val request = gson.fromJson(line, TimeSync::class.java)
+            val serverTime = System.currentTimeMillis()
             val response = TimeSync(
                 clientTime = request.clientTime,
-                serverTime = System.currentTimeMillis()
+                serverTime = serverTime
             )
             writer.println(gson.toJson(response))
+            InAppLogger.d(TAG, "Time sync: offset=${serverTime - request.clientTime}ms")
         } catch (e: Exception) {
-            Log.e(TAG, "Error handling time sync", e)
+            InAppLogger.e(TAG, "Time sync error", e)
         }
+    }
+    
+    private fun updateNotification(text: String) {
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("MirrorSync Agent")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .build()
+        
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
     
     private fun executeCommand(command: DeviceCommand): DeviceResponse {

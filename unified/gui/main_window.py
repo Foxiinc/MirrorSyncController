@@ -142,6 +142,27 @@ class MainWindow(QMainWindow):
         
         control_layout.addLayout(text_layout)
         
+        # System buttons
+        system_layout = QHBoxLayout()
+        
+        home_btn = QPushButton("🏠 Home")
+        home_btn.clicked.connect(lambda: self.send_key(3))
+        system_layout.addWidget(home_btn)
+        
+        back_btn = QPushButton("⬅️ Back")
+        back_btn.clicked.connect(lambda: self.send_key(4))
+        system_layout.addWidget(back_btn)
+        
+        menu_btn = QPushButton("☰ Menu")
+        menu_btn.clicked.connect(lambda: self.send_key(82))
+        system_layout.addWidget(menu_btn)
+        
+        recent_btn = QPushButton("📱 Recent")
+        recent_btn.clicked.connect(lambda: self.send_key(187))
+        system_layout.addWidget(recent_btn)
+        
+        control_layout.addLayout(system_layout)
+        
         left_panel.addWidget(control_group)
         
         # Right panel - Log
@@ -247,6 +268,14 @@ class MainWindow(QMainWindow):
         success = self.client.send_command("TEXT", text=text, target_devices=targets)
         status = "✓" if success else "✗"
         self.log_message(f"{status} Text '{text}' sent to {len(targets) if targets else 'all'} devices")
+    
+    def send_key(self, key_code: int):
+        targets = self.get_target_devices()
+        success = self.client.send_command("KEY", key_code=key_code, target_devices=targets)
+        key_names = {3: "Home", 4: "Back", 82: "Menu", 187: "Recent"}
+        key_name = key_names.get(key_code, f"Key{key_code}")
+        status = "✓" if success else "✗"
+        self.log_message(f"{status} {key_name} key sent to {len(targets) if targets else 'all'} devices")
     
     def start_mirror(self, serial: str):
         success = self.client.start_mirror(serial)

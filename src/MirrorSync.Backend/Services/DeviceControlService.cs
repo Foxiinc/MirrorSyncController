@@ -1,6 +1,9 @@
 using Grpc.Core;
+using Google.Rpc;
+using Google.Protobuf.WellKnownTypes;
 using MirrorSync.Protos;
 using MirrorSync.Backend.Models;
+using ProtoEmpty = MirrorSync.Protos.Empty;
 
 namespace MirrorSync.Backend.Services;
 
@@ -15,7 +18,7 @@ public class DeviceControlService : DeviceControl.DeviceControlBase
         _logger = logger;
     }
 
-    public override async Task<DeviceList> ListDevices(Empty request, ServerCallContext context)
+    public override async Task<DeviceList> ListDevices(ProtoEmpty request, ServerCallContext context)
     {
         var devices = await _deviceManager.ScanDevicesAsync();
         var deviceList = new DeviceList();
@@ -80,12 +83,54 @@ public class DeviceControlService : DeviceControl.DeviceControlBase
     {
         try
         {
+            var device = _deviceManager.GetDevice(request.Serial);
+            if (device == null)
+            {
+                throw new Google.Rpc.Status
+                {
+                    Code = (int)Code.NotFound,
+                    Message = "Device not found",
+                    Details =
+                    {
+                        Any.Pack(new BadRequest
+                        {
+                            FieldViolations =
+                            {
+                                new BadRequest.Types.FieldViolation
+                                {
+                                    Field = "serial",
+                                    Description = $"Device with serial '{request.Serial}' not found"
+                                }
+                            }
+                        })
+                    }
+                }.ToRpcException();
+            }
+
             await _deviceManager.StartMirrorAsync(request.Serial);
             return new MirrorResponse { Success = true, Message = "Mirror started" };
         }
+        catch (RpcException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            return new MirrorResponse { Success = false, Message = ex.Message };
+            _logger.LogError(ex, "Failed to start mirror for {Serial}", request.Serial);
+            throw new Google.Rpc.Status
+            {
+                Code = (int)Code.Internal,
+                Message = "Internal error starting mirror",
+                Details =
+                {
+                    Any.Pack(new ErrorInfo
+                    {
+                        Reason = "MIRROR_START_FAILED",
+                        Domain = "mirrorsync.backend",
+                        Metadata = { ["serial"] = request.Serial }
+                    })
+                }
+            }.ToRpcException();
         }
     }
 
@@ -93,12 +138,31 @@ public class DeviceControlService : DeviceControl.DeviceControlBase
     {
         try
         {
+            var device = _deviceManager.GetDevice(request.Serial);
+            if (device == null)
+            {
+                throw new Google.Rpc.Status
+                {
+                    Code = (int)Code.NotFound,
+                    Message = "Device not found"
+                }.ToRpcException();
+            }
+
             _deviceManager.StopMirror(request.Serial);
             return Task.FromResult(new MirrorResponse { Success = true, Message = "Mirror stopped" });
         }
+        catch (RpcException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            return Task.FromResult(new MirrorResponse { Success = false, Message = ex.Message });
+            _logger.LogError(ex, "Failed to stop mirror for {Serial}", request.Serial);
+            throw new Google.Rpc.Status
+            {
+                Code = (int)Code.Internal,
+                Message = "Internal error stopping mirror"
+            }.ToRpcException();
         }
     }
 }

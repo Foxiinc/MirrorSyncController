@@ -11,9 +11,12 @@ class PhoneScreen(QWidget):
     def __init__(self, device_serial=""):
         super().__init__()
         self.device_serial = device_serial
-        self.screen_width = 360
-        self.screen_height = 640
+        self.display_width = 360  # Размер отображения в GUI
+        self.display_height = 640
+        self.device_width = 1080  # Реальное разрешение Android
+        self.device_height = 2340
         self.screenshot = None
+        self.original_pixmap = None  # Оригинальный скриншот
         self.swipe_start = None
         self.swipe_end = None
         self.is_swiping = False
@@ -32,7 +35,7 @@ class PhoneScreen(QWidget):
         
         # Экран телефона
         self.screen_frame = QFrame()
-        self.screen_frame.setFixedSize(self.screen_width, self.screen_height)
+        self.screen_frame.setFixedSize(self.display_width, self.display_height)
         self.screen_frame.setStyleSheet("border: 2px solid black; background: #f0f0f0;")
         self.screen_frame.mousePressEvent = self.mouse_press
         self.screen_frame.mouseMoveEvent = self.mouse_move
@@ -59,6 +62,10 @@ class PhoneScreen(QWidget):
         menu_btn.clicked.connect(lambda: self.send_key_command(82))  # KEYCODE_MENU
         controls.addWidget(menu_btn)
         
+        recent_btn = QPushButton("📱 Recent")
+        recent_btn.clicked.connect(lambda: self.send_key_command(187))  # KEYCODE_APP_SWITCH
+        controls.addWidget(recent_btn)
+        
         layout.addLayout(controls)
         
         # Свайп подсказки
@@ -81,18 +88,34 @@ class PhoneScreen(QWidget):
         if event.button() == Qt.MouseButton.LeftButton and self.swipe_start:
             end_pos = event.pos()
             
-            # Нормализуем координаты (0-1)
-            start_x = self.swipe_start.x() / self.screen_width
-            start_y = self.swipe_start.y() / self.screen_height
-            end_x = end_pos.x() / self.screen_width
-            end_y = end_pos.y() / self.screen_height
+            # Пересчитываем координаты из GUI в реальные координаты Android
+            # GUI координаты (0 - display_width/height) -> Android координаты (0 - device_width/height)
+            start_gui_x = self.swipe_start.x()
+            start_gui_y = self.swipe_start.y()
+            end_gui_x = end_pos.x()
+            end_gui_y = end_pos.y()
             
-            # Проверяем расстояние
-            distance = ((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5
+            # Масштабируем в реальные координаты
+            start_device_x = (start_gui_x / self.display_width) * self.device_width
+            start_device_y = (start_gui_y / self.display_height) * self.device_height
+            end_device_x = (end_gui_x / self.display_width) * self.device_width
+            end_device_y = (end_gui_y / self.display_height) * self.device_height
             
-            if distance < 0.02:  # Короткое движение = тап
+            # Нормализуем в 0-1
+            start_x = max(0, min(1, start_device_x / self.device_width))
+            start_y = max(0, min(1, start_device_y / self.device_height))
+            end_x = max(0, min(1, end_device_x / self.device_width))
+            end_y = max(0, min(1, end_device_y / self.device_height))
+            
+            # Проверяем расстояние в пикселях GUI
+            pixel_distance = ((end_gui_x - start_gui_x) ** 2 + (end_gui_y - start_gui_y) ** 2) ** 0.5
+            
+            if pixel_distance < 10:  # Короткое движение = тап
+                print(f"TAP at GUI: ({start_gui_x:.0f}, {start_gui_y:.0f}) -> normalized: ({start_x:.3f}, {start_y:.3f})")
                 self.tap_signal.emit(start_x, start_y)
             else:  # Длинное движение = свайп
+                print(f"SWIPE GUI: ({start_gui_x:.0f}, {start_gui_y:.0f}) -> ({end_gui_x:.0f}, {end_gui_y:.0f})")
+                print(f"SWIPE normalized: ({start_x:.3f}, {start_y:.3f}) -> ({end_x:.3f}, {end_y:.3f})")
                 self.swipe_signal.emit(start_x, start_y, end_x, end_y)
                 
             self.swipe_start = None
@@ -105,12 +128,12 @@ class PhoneScreen(QWidget):
         
         # Рисуем скриншот если есть
         if self.screenshot:
-            painter.drawPixmap(0, 0, self.screenshot)
+            painter.drawPixmap(0, 0, self.display_width, self.display_height, self.screenshot)
         else:
             # Рисуем заглушку
-            painter.fillRect(0, 0, self.screen_width, self.screen_height, QColor(240, 240, 240))
+            painter.fillRect(0, 0, self.display_width, self.display_height, QColor(240, 240, 240))
             painter.setPen(QPen(QColor(150, 150, 150), 1))
-            painter.drawText(self.screen_width//2 - 50, self.screen_height//2, "No Screenshot")
+            painter.drawText(self.display_width//2 - 50, self.display_height//2, "No Screenshot")
             
         # Рисуем линию свайпа
         if self.is_swiping and self.swipe_start and self.swipe_end:
@@ -139,10 +162,15 @@ class PhoneScreen(QWidget):
     def update_screenshot(self, serial, pixmap):
         """Обновляет скриншот"""
         if serial == self.device_serial and pixmap:
-            # Растягиваем на всё поле для нормализованных координат
+            # Сохраняем оригинальный размер для расчета координат
+            self.original_pixmap = pixmap
+            self.device_width = pixmap.width()
+            self.device_height = pixmap.height()
+            
+            # Масштабируем для отображения в GUI
             self.screenshot = pixmap.scaled(
-                self.screen_width, self.screen_height, 
-                Qt.AspectRatioMode.IgnoreAspectRatio,  # Полное растяжение
+                self.display_width, self.display_height, 
+                Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
             self.screen_frame.update()
@@ -162,6 +190,8 @@ class PhoneScreen(QWidget):
         self.stop_screenshot_service()
         self.device_serial = serial
         self.findChild(QLabel).setText(f"Device: {serial}")
+        self.device_width = 1080  # Сброс на значения по умолчанию
+        self.device_height = 2340
         self.start_screenshot_service()
     
     def closeEvent(self, event):

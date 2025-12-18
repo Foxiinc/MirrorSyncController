@@ -2,23 +2,31 @@ import grpc
 import device_control_pb2
 import device_control_pb2_grpc
 from typing import List, Optional
+import time
 
 class BackendClient:
-    def __init__(self, address: str = "localhost:50051"):
+    def __init__(self, address: str = "localhost:50051", max_retries: int = 10):
         self.address = address
         self.channel = None
         self.stub = None
+        self.max_retries = max_retries
     
     def connect(self) -> bool:
-        try:
-            self.channel = grpc.insecure_channel(self.address)
-            self.stub = device_control_pb2_grpc.DeviceControlStub(self.channel)
-            # Test connection
-            self.list_devices()
-            return True
-        except Exception as e:
-            print(f"Failed to connect to backend: {e}")
-            return False
+        """Connect to backend with retries"""
+        for attempt in range(self.max_retries):
+            try:
+                self.channel = grpc.insecure_channel(self.address)
+                self.stub = device_control_pb2_grpc.DeviceControlStub(self.channel)
+                # Test connection
+                self.list_devices()
+                return True
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    time.sleep(0.5)
+                else:
+                    print(f"Failed to connect to backend after {self.max_retries} attempts: {e}")
+                    return False
+        return False
     
     def disconnect(self):
         if self.channel:
