@@ -5,7 +5,9 @@ import android.accessibilityservice.GestureDescription
 import android.content.Intent
 import android.graphics.Path
 import android.util.Log
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -91,13 +93,27 @@ class MirrorAccessibilityService : AccessibilityService() {
             val success = try {
                 when (command.type) {
                     "TAP" -> {
-                        val validation = GestureValidator.validateTap(command.x, command.y)
-                        if (validation is GestureValidator.ValidationResult.Error) {
-                            InAppLogger.e(TAG, "Invalid TAP: ${validation.message}")
-                            false
+                        val hasSelector = !command.tapViewId.isNullOrBlank() ||
+                                !command.tapText.isNullOrBlank() ||
+                                !command.tapContentDesc.isNullOrBlank()
+                        if (hasSelector) {
+                            val node = findNode(command.tapViewId, command.tapText, command.tapContentDesc)
+                            if (node != null) {
+                                InAppLogger.d(TAG, "TAP by element: viewId=${command.tapViewId}, text=${command.tapText}, contentDesc=${command.tapContentDesc}")
+                                performTapOnNode(node)
+                            } else {
+                                InAppLogger.e(TAG, "TAP by element: node not found")
+                                false
+                            }
                         } else {
-                            InAppLogger.d(TAG, "TAP (${command.x}, ${command.y})")
-                            performTap(command.x, command.y)
+                            val validation = GestureValidator.validateTap(command.x, command.y)
+                            if (validation is GestureValidator.ValidationResult.Error) {
+                                InAppLogger.e(TAG, "Invalid TAP: ${validation.message}")
+                                false
+                            } else {
+                                InAppLogger.d(TAG, "TAP (${command.x}, ${command.y})")
+                                performTap(command.x, command.y)
+                            }
                         }
                     }
                     "SWIPE" -> {
@@ -201,6 +217,63 @@ class MirrorAccessibilityService : AccessibilityService() {
         
         return result
     }
+
+    /** Поиск узла по viewId, text или contentDescription (первый подходящий). */
+    private fun findNode(viewId: String?, text: String?, contentDesc: String?): AccessibilityNodeInfo? {
+        val root = rootInActiveWindow ?: return null
+        return findNodeRec(root, viewId, text, contentDesc)
+    }
+
+    private fun findNodeRec(node: AccessibilityNodeInfo, viewId: String?, text: String?, contentDesc: String?): AccessibilityNodeInfo? {
+        if (!node.isVisibleToUser) return null
+        val v = node.viewIdResourceName?.takeIf { !it.isNullOrBlank() }
+        val t = node.text?.toString()?.takeIf { !it.isNullOrBlank() }
+        val c = node.contentDescription?.toString()?.takeIf { !it.isNullOrBlank() }
+        val matchViewId = viewId.isNullOrBlank() || v?.contains(viewId, ignoreCase = true) == true
+        val matchText = text.isNullOrBlank() || t?.contains(text, ignoreCase = true) == true
+        val matchDesc = contentDesc.isNullOrBlank() || c?.contains(contentDesc, ignoreCase = true) == true
+        if (matchViewId && matchText && matchDesc && (node.isClickable || node.isEnabled)) return node
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { child ->
+                findNodeRec(child, viewId, text, contentDesc)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    /** Тап по центру bounds узла или ACTION_CLICK. */
+    private fun performTapOnNode(node: AccessibilityNodeInfo): Boolean {
+        if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            Log.d(TAG, "Tap on node: ACTION_CLICK succeeded")
+            return true
+        }
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        if (rect.isEmpty) {
+            Log.w(TAG, "Tap on node: bounds empty")
+            return false
+        }
+        val centerX = rect.centerX().toFloat()
+        val centerY = rect.centerY().toFloat()
+        val path = Path().apply { moveTo(centerX, centerY) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
+            .build()
+        var result = false
+        val latch = CountDownLatch(1)
+        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                result = true
+                latch.countDown()
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                latch.countDown()
+            }
+        }, null)
+        if (!dispatched) return false
+        latch.await(1000, TimeUnit.MILLISECONDS)
+        return result
+    }
     
     private fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Int): Boolean {
         // Проверка валидности координат
@@ -257,12 +330,11 @@ class MirrorAccessibilityService : AccessibilityService() {
         return result
     }
     
+    /** TEXT не поддерживается: требуется IME / ACTION_SET_TEXT; пока явно не реализовано. */
     private fun performText(text: String): Boolean {
         return try {
-            // Для ввода текста нужно использовать IME или другой метод
-            // Пока просто логируем
-            Log.i(TAG, "Text input requested: $text (not implemented)")
-            false // Возвращаем false, так как не реализовано
+            Log.i(TAG, "TEXT not supported (requested: $text)")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Error in performText", e)
             false

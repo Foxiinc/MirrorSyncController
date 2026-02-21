@@ -49,7 +49,10 @@ public class DeviceControlService : DeviceControl.DeviceControlBase
             EndY = request.EndY,
             DurationMs = request.DurationMs,
             Text = request.Text,
-            KeyCode = request.KeyCode
+            KeyCode = request.KeyCode,
+            TapViewId = request.TapViewId,
+            TapText = request.TapText,
+            TapContentDesc = request.TapContentDesc
         };
 
         var targetDevices = request.TargetDevices.Count > 0 
@@ -163,6 +166,37 @@ public class DeviceControlService : DeviceControl.DeviceControlBase
                 Code = (int)Code.Internal,
                 Message = "Internal error stopping mirror"
             }.ToRpcException();
+        }
+    }
+
+    public override async Task<ScreenshotResponse> GetScreenshot(ScreenshotRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var device = _deviceManager.GetDevice(request.Serial);
+            if (device == null)
+            {
+                return new ScreenshotResponse { Success = false };
+            }
+
+            var screenshotData = await _deviceManager.GetScreenshotAsync(request.Serial);
+            if (screenshotData != null)
+            {
+                return new ScreenshotResponse
+                {
+                    Success = true,
+                    ImageData = Google.Protobuf.ByteString.CopyFrom(screenshotData.Data),
+                    Width = screenshotData.Width,
+                    Height = screenshotData.Height
+                };
+            }
+
+            return new ScreenshotResponse { Success = false };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get screenshot for {Serial}", request.Serial);
+            return new ScreenshotResponse { Success = false };
         }
     }
 }

@@ -60,6 +60,11 @@
             android:name=".TcpServerService"
             android:exported="false"
             android:foregroundServiceType="systemExempted" />
+            
+        <service
+            android:name=".ScreenStreamService"
+            android:exported="false"
+            android:foregroundServiceType="systemExempted" />
 
     </application>
 

@@ -11,7 +11,14 @@ class BackendClient:
     
     def connect(self) -> bool:
         try:
-            self.channel = grpc.insecure_channel(self.address)
+            options = [
+                ('grpc.keepalive_time_ms', 1000),
+                ('grpc.keepalive_timeout_ms', 500),
+                ('grpc.http2.max_pings_without_data', 0),
+                ('grpc.http2.min_time_between_pings_ms', 100),
+                ('grpc.http2.min_ping_interval_without_data_ms', 100)
+            ]
+            self.channel = grpc.insecure_channel(self.address, options=options)
             self.stub = device_control_pb2_grpc.DeviceControlStub(self.channel)
             # Test connection
             self.list_devices()
@@ -83,11 +90,13 @@ class BackendClient:
             print(f"Error starting mirror: {e}")
             return False
     
-    def stop_mirror(self, serial: str) -> bool:
+    def get_screenshot(self, serial: str) -> Optional[bytes]:
         try:
-            request = device_control_pb2.MirrorRequest(serial=serial)
-            response = self.stub.StopMirror(request)
-            return response.success
+            request = device_control_pb2.ScreenshotRequest(serial=serial)
+            response = self.stub.GetScreenshot(request)
+            if response.success:
+                return response.image_data
+            return None
         except Exception as e:
-            print(f"Error stopping mirror: {e}")
-            return False
+            print(f"Error getting screenshot: {e}")
+            return None

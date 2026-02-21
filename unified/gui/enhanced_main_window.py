@@ -174,6 +174,8 @@ class EnhancedMainWindow(QMainWindow):
             self.log_message(f"Removed screen for {serial}")
     
     def handle_screen_tap(self, serial, x, y):
+        import time
+        time.sleep(0.01)  # Микрозадержка для стабильности
         targets = [] if self.broadcast_mode else [serial]
         success = self.client.send_command("TAP", x, y, target_devices=targets)
         status = "✓" if success else "✗"
@@ -211,6 +213,8 @@ class EnhancedMainWindow(QMainWindow):
             self.log_message("Broadcast mode OFF")
     
     def send_quick_command(self, cmd_type):
+        import time
+        time.sleep(0.01)  # Микрозадержка для стабильности
         targets = [] if self.broadcast_mode else self.selected_devices
         
         if cmd_type == "HOME":

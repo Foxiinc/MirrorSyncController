@@ -12,7 +12,10 @@ data class DeviceCommand(
     @SerializedName("duration_ms") val durationMs: Int = 0,
     @SerializedName("text") val text: String? = null,
     @SerializedName("key_code") val keyCode: Int = 0,
-    @SerializedName("exec_time_device_ms") val execTimeDeviceMs: Long
+    @SerializedName("exec_time_device_ms") val execTimeDeviceMs: Long,
+    @SerializedName("tap_view_id") val tapViewId: String? = null,
+    @SerializedName("tap_text") val tapText: String? = null,
+    @SerializedName("tap_content_desc") val tapContentDesc: String? = null
 )
 
 data class DeviceResponse(

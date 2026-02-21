@@ -33,6 +33,15 @@ public class DeviceCommand
 
     [JsonPropertyName("exec_time_device_ms")]
     public long ExecTimeDeviceMs { get; set; }
+
+    [JsonPropertyName("tap_view_id")]
+    public string? TapViewId { get; set; }
+
+    [JsonPropertyName("tap_text")]
+    public string? TapText { get; set; }
+
+    [JsonPropertyName("tap_content_desc")]
+    public string? TapContentDesc { get; set; }
 }
 
 public class DeviceResponse

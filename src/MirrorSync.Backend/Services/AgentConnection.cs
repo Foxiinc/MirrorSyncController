@@ -9,6 +9,7 @@ public class AgentConnection
 {
     private readonly AndroidDevice _device;
     private readonly ILogger _logger;
+    private readonly MirrorSyncConfig _config;
     private TcpClient? _tcpClient;
     private NetworkStream? _stream;
     private int _sequenceCounter = 1;
@@ -17,10 +18,11 @@ public class AgentConnection
 
     public bool IsConnected => _tcpClient?.Connected == true && _device.AgentConnected;
 
-    public AgentConnection(AndroidDevice device, ILogger logger)
+    public AgentConnection(AndroidDevice device, ILogger logger, MirrorSyncConfig config)
     {
         _device = device;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<bool> ConnectAsync()
@@ -31,8 +33,7 @@ public class AgentConnection
             _tcpClient.ReceiveTimeout = 5000;
             _tcpClient.SendTimeout = 5000;
             
-            // Подключаемся к порту 4444 (фиксированный порт агента)
-            await _tcpClient.ConnectAsync("127.0.0.1", 4444);
+            await _tcpClient.ConnectAsync(_config.AgentHost, _config.AgentPort);
             _stream = _tcpClient.GetStream();
             
             // Проверяем соединение пингом
@@ -144,5 +145,67 @@ public class AgentConnection
         _stream?.Close();
         _tcpClient?.Close();
         _device.AgentConnected = false;
+    }
+
+    public async Task<ScreenshotData?> GetScreenshotAsync()
+    {
+        if (_stream == null || !_device.AgentConnected)
+            return null;
+
+        try
+        {
+            var screenshotCommand = new { type = "SCREENSHOT" };
+            var json = JsonSerializer.Serialize(screenshotCommand);
+            var data = Encoding.UTF8.GetBytes(json + "\n");
+            
+            await _stream.WriteAsync(data);
+
+            // Протокол: 4 байта size (big-endian), 4 width, 4 height, затем JPEG
+            var header = new byte[12];
+            var headerRead = 0;
+            while (headerRead < 12)
+            {
+                var n = await _stream.ReadAsync(header, headerRead, 12 - headerRead);
+                if (n == 0) return null;
+                headerRead += n;
+            }
+            var size = ReadInt32BigEndian(header.AsSpan(0, 4));
+            var width = ReadInt32BigEndian(header.AsSpan(4, 4));
+            var height = ReadInt32BigEndian(header.AsSpan(8, 4));
+
+            if (size <= 0 || size > 10 * 1024 * 1024) // Максимум 10MB
+                return null;
+
+            var imageData = new byte[size];
+            var totalRead = 0;
+            while (totalRead < size)
+            {
+                var n = await _stream.ReadAsync(imageData, totalRead, size - totalRead);
+                if (n == 0) break;
+                totalRead += n;
+            }
+
+            if (totalRead == size)
+            {
+                return new ScreenshotData
+                {
+                    Data = imageData,
+                    Width = width,
+                    Height = height
+                };
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Screenshot failed for {Serial}: {Error}", _device.Serial, ex.Message);
+            return null;
+        }
+    }
+
+    private static int ReadInt32BigEndian(ReadOnlySpan<byte> span)
+    {
+        return (span[0] << 24) | (span[1] << 16) | (span[2] << 8) | span[3];
     }
 }

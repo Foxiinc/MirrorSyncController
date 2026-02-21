@@ -2,22 +2,25 @@ using SharpAdbClient;
 using MirrorSync.Backend.Models;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace MirrorSync.Backend.Services;
 
 public class DeviceManager
 {
     private readonly ConcurrentDictionary<string, AndroidDevice> _devices = new();
-    private readonly ConcurrentDictionary<string, AgentConnection> _connections = new();
+    private readonly ConnectionPool _connectionPool;
     private readonly AdbClient _adbClient;
     private readonly ILogger<DeviceManager> _logger;
-    private int _nextPort = 4444;
+    private readonly MirrorSyncConfig _config;
     private DateTime _lastScan = DateTime.MinValue;
     private const int ScanIntervalMs = 5000;
 
-    public DeviceManager(ILogger<DeviceManager> logger)
+    public DeviceManager(ILogger<DeviceManager> logger, ConnectionPool connectionPool, MirrorSyncConfig config)
     {
         _logger = logger;
+        _connectionPool = connectionPool;
+        _config = config;
         _adbClient = new AdbClient();
         
         try
@@ -45,18 +48,49 @@ public class DeviceManager
 
     private string? FindAdbPath()
     {
-        var paths = new[]
-        {
-            @"C:\platform-tools\adb.exe",
-            @"C:\Android\Sdk\platform-tools\adb.exe",
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
-                @"Android\Sdk\platform-tools\adb.exe"),
-            "adb.exe"
-        };
+        var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var adbName = isWindows ? "adb.exe" : "adb";
 
-        foreach (var path in paths)
+        if (_config.AdbPaths?.Count > 0)
         {
-            if (File.Exists(path))
+            foreach (var p in _config.AdbPaths)
+            {
+                if (!string.IsNullOrWhiteSpace(p) && File.Exists(p))
+                    return p;
+            }
+        }
+
+        var pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrEmpty(pathEnv))
+        {
+            var separator = isWindows ? ';' : ':';
+            foreach (var dir in pathEnv.Split(separator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var candidate = Path.Combine(dir.Trim(), adbName);
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+        }
+
+        var fallbackPaths = isWindows
+            ? new[]
+            {
+                @"C:\platform-tools\adb.exe",
+                @"C:\Android\Sdk\platform-tools\adb.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    @"Android\Sdk\platform-tools\adb.exe"),
+                "adb.exe"
+            }
+            : new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Android", "Sdk", "platform-tools", "adb"),
+                "/usr/bin/adb",
+                "/usr/local/bin/adb"
+            };
+
+        foreach (var path in fallbackPaths)
+        {
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
                 return path;
         }
         return null;
@@ -82,7 +116,7 @@ public class DeviceManager
                 var androidDevice = _devices.GetOrAdd(device.Serial, serial => new AndroidDevice
                 {
                     Serial = serial,
-                    Port = _nextPort++,
+                    Port = _config.AgentPort,
                     Status = "connected"
                 });
 
@@ -118,22 +152,18 @@ public class DeviceManager
         try
         {
             var adbDevice = new DeviceData { Serial = device.Serial };
-            
+            var portStr = _config.AgentPort.ToString();
+
             try
             {
-                _adbClient.CreateForward(adbDevice, "tcp:4444", "tcp:4444", false);
+                _adbClient.CreateForward(adbDevice, $"tcp:{_config.AgentPort}", $"tcp:{portStr}", false);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning("Port forward failed for {Serial}: {Error}", device.Serial, ex.Message);
             }
-            
-            if (!_connections.ContainsKey(device.Serial))
-            {
-                var connection = new AgentConnection(device, _logger);
-                _connections[device.Serial] = connection;
-                await connection.ConnectAsync();
-            }
+
+            _ = await _connectionPool.GetOrCreateConnectionAsync(device);
         }
         catch (Exception ex)
         {
@@ -150,7 +180,8 @@ public class DeviceManager
         
         foreach (var deviceSerial in targetDevices)
         {
-            if (_connections.TryGetValue(deviceSerial, out var connection))
+            var connection = _connectionPool.GetConnection(deviceSerial);
+            if (connection != null)
             {
                 tasks.Add(connection.SendCommandAsync(command));
             }
@@ -201,9 +232,29 @@ public class DeviceManager
             {
                 device.MirrorProcess.Kill();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to kill mirror process for {Serial}", serial);
+            }
             device.MirrorProcess = null;
             _logger.LogInformation("Mirror stopped for {Serial}", serial);
+        }
+    }
+
+    public async Task<ScreenshotData?> GetScreenshotAsync(string serial)
+    {
+        var connection = _connectionPool.GetConnection(serial);
+        if (connection == null)
+            return null;
+
+        try
+        {
+            return await connection.GetScreenshotAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Screenshot failed for {Serial}: {Error}", serial, ex.Message);
+            return null;
         }
     }
 }

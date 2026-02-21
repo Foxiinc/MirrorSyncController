@@ -7,11 +7,13 @@ public class ConnectionPool : IDisposable
 {
     private readonly ConcurrentDictionary<string, AgentConnection> _connections = new();
     private readonly ILogger<ConnectionPool> _logger;
+    private readonly MirrorSyncConfig _config;
     private readonly SemaphoreSlim _semaphore = new(20);
 
-    public ConnectionPool(ILogger<ConnectionPool> logger)
+    public ConnectionPool(ILogger<ConnectionPool> logger, MirrorSyncConfig config)
     {
         _logger = logger;
+        _config = config;
     }
 
     public async Task<AgentConnection?> GetOrCreateConnectionAsync(AndroidDevice device)
@@ -27,7 +29,7 @@ public class ConnectionPool : IDisposable
         await _semaphore.WaitAsync();
         try
         {
-            var connection = new AgentConnection(device, _logger);
+            var connection = new AgentConnection(device, _logger, _config);
             if (await connection.ConnectAsync())
             {
                 _connections[device.Serial] = connection;
@@ -39,6 +41,11 @@ public class ConnectionPool : IDisposable
         {
             _semaphore.Release();
         }
+    }
+
+    public AgentConnection? GetConnection(string serial)
+    {
+        return _connections.TryGetValue(serial, out var conn) ? conn : null;
     }
 
     public void RemoveConnection(string serial)

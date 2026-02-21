@@ -10,6 +10,7 @@ service DeviceControl {
   rpc GetDeviceStatus(DeviceStatusRequest) returns (DeviceStatusResponse);
   rpc StartMirror(MirrorRequest) returns (MirrorResponse);
   rpc StopMirror(MirrorRequest) returns (MirrorResponse);
+  rpc GetScreenshot(ScreenshotRequest) returns (ScreenshotResponse);
 }
 
 message Empty {}
@@ -36,6 +37,10 @@ message CommandRequest {
   string text = 7;
   int32 key_code = 8;
   repeated string target_devices = 9; // empty = all devices
+  // Тап по элементу (приоритет над x,y если заданы)
+  string tap_view_id = 10;      // resource-id узла
+  string tap_text = 11;         // text узла
+  string tap_content_desc = 12; // contentDescription узла
 }
 
 message CommandResponse {
@@ -62,4 +67,15 @@ message MirrorRequest {
 message MirrorResponse {
   bool success = 1;
   string message = 2;
+}
+
+message ScreenshotRequest {
+  string serial = 1;
+}
+
+message ScreenshotResponse {
+  bool success = 1;
+  bytes image_data = 2;
+  int32 width = 3;
+  int32 height = 4;
 }

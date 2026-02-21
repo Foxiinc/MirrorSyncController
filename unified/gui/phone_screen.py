@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
 from PyQt6.QtGui import QPainter, QPen, QPixmap, QColor
 from .screenshot_service import ScreenshotService
 
@@ -95,17 +95,11 @@ class PhoneScreen(QWidget):
             end_gui_x = end_pos.x()
             end_gui_y = end_pos.y()
             
-            # Масштабируем в реальные координаты
-            start_device_x = (start_gui_x / self.display_width) * self.device_width
-            start_device_y = (start_gui_y / self.display_height) * self.device_height
-            end_device_x = (end_gui_x / self.display_width) * self.device_width
-            end_device_y = (end_gui_y / self.display_height) * self.device_height
-            
-            # Нормализуем в 0-1
-            start_x = max(0, min(1, start_device_x / self.device_width))
-            start_y = max(0, min(1, start_device_y / self.device_height))
-            end_x = max(0, min(1, end_device_x / self.device_width))
-            end_y = max(0, min(1, end_device_y / self.device_height))
+            # Нормализуем координаты напрямую в 0-1 (защита от деления на ноль)
+            start_x = max(0, min(1, start_gui_x / self.display_width)) if self.display_width > 0 else 0
+            start_y = max(0, min(1, start_gui_y / self.display_height)) if self.display_height > 0 else 0
+            end_x = max(0, min(1, end_gui_x / self.display_width)) if self.display_width > 0 else 0
+            end_y = max(0, min(1, end_gui_y / self.display_height)) if self.display_height > 0 else 0
             
             # Проверяем расстояние в пикселях GUI
             pixel_distance = ((end_gui_x - start_gui_x) ** 2 + (end_gui_y - start_gui_y) ** 2) ** 0.5
@@ -147,40 +141,46 @@ class PhoneScreen(QWidget):
             painter.drawEllipse(end_x - arrow_size//2, end_y - arrow_size//2, arrow_size, arrow_size)
             
     def start_screenshot_service(self):
-        """Запускает сервис скриншотов"""
-        if self.device_serial and not self.screenshot_service:
-            self.screenshot_service = ScreenshotService(self.device_serial)
-            self.screenshot_service.screenshot_ready.connect(self.update_screenshot)
-            self.screenshot_service.start()
+        """Одиночные скриншоты — через Backend (кнопка Screenshot / request_screenshot).
+        Живой стрим по желанию: создать ScreenshotService(serial, port) с портом для этого устройства."""
+        pass
     
     def stop_screenshot_service(self):
         """Останавливает сервис скриншотов"""
-        if self.screenshot_service:
-            self.screenshot_service.stop()
-            self.screenshot_service = None
+        if hasattr(self, 'screenshot_timer'):
+            self.screenshot_timer.stop()
     
     def update_screenshot(self, serial, pixmap):
         """Обновляет скриншот"""
-        if serial == self.device_serial and pixmap:
+        if serial == self.device_serial and pixmap and not pixmap.isNull():
             # Сохраняем оригинальный размер для расчета координат
             self.original_pixmap = pixmap
             self.device_width = pixmap.width()
             self.device_height = pixmap.height()
             
-            # Масштабируем для отображения в GUI
-            self.screenshot = pixmap.scaled(
-                self.display_width, self.display_height, 
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.screen_frame.update()
+            # Масштабируем для отображения в GUI только если pixmap валидный
+            if self.device_width > 0 and self.device_height > 0:
+                self.screenshot = pixmap.scaled(
+                    self.display_width, self.display_height, 
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                self.screen_frame.update()
     
     def take_screenshot(self):
-        """Принудительно делает скриншот"""
-        if self.screenshot_service:
-            pixmap = self.screenshot_service.take_screenshot()
-            if pixmap:
-                self.update_screenshot(self.device_serial, pixmap)
+        """Принудительно делает скриншот - через Backend"""
+        self.request_screenshot()
+        
+    def request_screenshot(self):
+        """Запрашивает скриншот через Backend"""
+        from .backend_client import BackendClient
+        client = BackendClient()
+        if client.connect():
+            image_data = client.get_screenshot(self.device_serial)
+            if image_data:
+                pixmap = QPixmap()
+                if pixmap.loadFromData(image_data):
+                    self.update_screenshot(self.device_serial, pixmap)
         
     def send_key_command(self, key_code):
         """Отправляет команду клавиши"""

@@ -116,6 +116,7 @@ class TcpServerService : LifecycleService() {
                                 writer.println("{\"type\":\"PONG\",\"success\":true}")
                                 InAppLogger.d(TAG, "PING -> PONG")
                             }
+                            line.contains("SCREENSHOT") -> handleScreenshot(socket)
                             else -> {
                                 val command = gson.fromJson(line, DeviceCommand::class.java)
                                 val response = executeCommand(command)
@@ -152,6 +153,28 @@ class TcpServerService : LifecycleService() {
         }
     }
     
+    private fun handleScreenshot(socket: Socket) {
+        try {
+            val bitmap = ScreenCaptureHelper.capture()
+            if (bitmap == null) {
+                InAppLogger.w(TAG, "Screenshot capture failed")
+                return
+            }
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+            val data = stream.toByteArray()
+            val output = DataOutputStream(socket.getOutputStream())
+            output.writeInt(data.size)
+            output.writeInt(bitmap.width)
+            output.writeInt(bitmap.height)
+            output.write(data)
+            output.flush()
+            InAppLogger.d(TAG, "Screenshot sent: ${bitmap.width}x${bitmap.height}, ${data.size} bytes")
+        } catch (e: Exception) {
+            InAppLogger.e(TAG, "Screenshot failed", e)
+        }
+    }
+
     private fun handleTimeSync(line: String, writer: PrintWriter) {
         try {
             val request = gson.fromJson(line, TimeSync::class.java)

@@ -6,7 +6,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
@@ -21,18 +20,8 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "MainActivity"
-        
-        fun isAccessibilityServiceEnabled(context: Context): Boolean {
-            val enabledServices = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            )
-            
-            val serviceName = "${context.packageName}/.MirrorAccessibilityService"
-            return !TextUtils.isEmpty(enabledServices) && enabledServices.contains(serviceName)
-        }
     }
-    
+
     private lateinit var statusText: TextView
     private lateinit var enableButton: Button
     private lateinit var tcpStatusText: TextView
@@ -59,6 +48,9 @@ class MainActivity : AppCompatActivity() {
         
         InAppLogger.i(TAG, "MainActivity created")
         
+        // Запускаем ScreenStreamService
+        startService(Intent(this, ScreenStreamService::class.java))
+        
         updateStatus()
         startStatusUpdates()
     }
@@ -81,7 +73,7 @@ class MainActivity : AppCompatActivity() {
 
     
     private fun updateStatus() {
-        val isEnabled = isAccessibilityServiceEnabled()
+        val isEnabled = isAccessibilityServiceEnabled(this)
         val serviceInstance = MirrorAccessibilityService.instance
         
         statusText.text = when {
@@ -106,11 +98,10 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
     
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val accessibilityManager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val accessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
         val enabledServices = accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        
-        val serviceName = "${packageName}/.MirrorAccessibilityService"
+        val serviceName = "${context.packageName}/.MirrorAccessibilityService"
         return enabledServices.any { it.id == serviceName }
     }
     

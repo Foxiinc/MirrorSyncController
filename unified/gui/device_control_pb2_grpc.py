@@ -5,7 +5,7 @@ import warnings
 
 import device_control_pb2 as device__control__pb2
 
-GRPC_GENERATED_VERSION = '1.66.2'
+GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in device_control_pb2_grpc.py depends on'
+        + ' but the generated code in device_control_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -59,6 +59,11 @@ class DeviceControlStub(object):
                 request_serializer=device__control__pb2.MirrorRequest.SerializeToString,
                 response_deserializer=device__control__pb2.MirrorResponse.FromString,
                 _registered_method=True)
+        self.GetScreenshot = channel.unary_unary(
+                '/mirrorsync.DeviceControl/GetScreenshot',
+                request_serializer=device__control__pb2.ScreenshotRequest.SerializeToString,
+                response_deserializer=device__control__pb2.ScreenshotResponse.FromString,
+                _registered_method=True)
 
 
 class DeviceControlServicer(object):
@@ -94,6 +99,12 @@ class DeviceControlServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetScreenshot(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DeviceControlServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -121,6 +132,11 @@ def add_DeviceControlServicer_to_server(servicer, server):
                     servicer.StopMirror,
                     request_deserializer=device__control__pb2.MirrorRequest.FromString,
                     response_serializer=device__control__pb2.MirrorResponse.SerializeToString,
+            ),
+            'GetScreenshot': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetScreenshot,
+                    request_deserializer=device__control__pb2.ScreenshotRequest.FromString,
+                    response_serializer=device__control__pb2.ScreenshotResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -258,6 +274,33 @@ class DeviceControl(object):
             '/mirrorsync.DeviceControl/StopMirror',
             device__control__pb2.MirrorRequest.SerializeToString,
             device__control__pb2.MirrorResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetScreenshot(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mirrorsync.DeviceControl/GetScreenshot',
+            device__control__pb2.ScreenshotRequest.SerializeToString,
+            device__control__pb2.ScreenshotResponse.FromString,
             options,
             channel_credentials,
             insecure,
