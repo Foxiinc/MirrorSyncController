@@ -12,6 +12,7 @@ __pycache__/
 *.dll
 *.exe
 *.pdb
+**/publish/
 *.cache
 *.suo
 *.user
