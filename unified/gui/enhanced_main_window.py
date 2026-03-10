@@ -55,9 +55,15 @@ class EnhancedMainWindow(QMainWindow):
         self.device_table.itemSelectionChanged.connect(self.on_device_selection_changed)
         device_layout.addWidget(self.device_table)
         
+        btn_layout = QHBoxLayout()
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self.refresh_devices)
-        device_layout.addWidget(refresh_btn)
+        btn_layout.addWidget(refresh_btn)
+        install_agent_btn = QPushButton("Install Agent on device")
+        install_agent_btn.clicked.connect(self.install_agent_on_device)
+        install_agent_btn.setToolTip("Install MirrorSync Agent APK on selected device (USB debugging)")
+        btn_layout.addWidget(install_agent_btn)
+        device_layout.addLayout(btn_layout)
         
         layout.addWidget(device_group)
         
@@ -152,6 +158,21 @@ class EnhancedMainWindow(QMainWindow):
         
         for serial in current_serials - new_serials:
             self.remove_phone_screen(serial)
+
+    def install_agent_on_device(self):
+        row = self.device_table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Install Agent", "Select a device in the table first.")
+            return
+        serial = self.device_table.item(row, 0).text()
+        self.log_message(f"Installing agent on {serial}...")
+        success, message = self.client.install_agent(serial)
+        if success:
+            QMessageBox.information(self, "Install Agent", message)
+            self.log_message(f"Agent installed on {serial}.")
+        else:
+            QMessageBox.warning(self, "Install Agent", message)
+            self.log_message(f"Install failed: {message}")
     
     def add_phone_screen(self, serial):
         phone_screen = PhoneScreen(serial)

@@ -199,4 +199,15 @@ public class DeviceControlService : DeviceControl.DeviceControlBase
             return new ScreenshotResponse { Success = false };
         }
     }
+
+    public override async Task<InstallAgentResponse> InstallAgent(InstallAgentRequest request, ServerCallContext context)
+    {
+        if (string.IsNullOrWhiteSpace(request.Serial))
+        {
+            return new InstallAgentResponse { Success = false, Message = "Serial is required." };
+        }
+
+        var (success, message) = await _deviceManager.InstallAgentAsync(request.Serial);
+        return new InstallAgentResponse { Success = success, Message = message };
+    }
 }

@@ -64,6 +64,11 @@ class DeviceControlStub(object):
                 request_serializer=device__control__pb2.ScreenshotRequest.SerializeToString,
                 response_deserializer=device__control__pb2.ScreenshotResponse.FromString,
                 _registered_method=True)
+        self.InstallAgent = channel.unary_unary(
+                '/mirrorsync.DeviceControl/InstallAgent',
+                request_serializer=device__control__pb2.InstallAgentRequest.SerializeToString,
+                response_deserializer=device__control__pb2.InstallAgentResponse.FromString,
+                _registered_method=True)
 
 
 class DeviceControlServicer(object):
@@ -105,6 +110,12 @@ class DeviceControlServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def InstallAgent(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DeviceControlServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -137,6 +148,11 @@ def add_DeviceControlServicer_to_server(servicer, server):
                     servicer.GetScreenshot,
                     request_deserializer=device__control__pb2.ScreenshotRequest.FromString,
                     response_serializer=device__control__pb2.ScreenshotResponse.SerializeToString,
+            ),
+            'InstallAgent': grpc.unary_unary_rpc_method_handler(
+                    servicer.InstallAgent,
+                    request_deserializer=device__control__pb2.InstallAgentRequest.FromString,
+                    response_serializer=device__control__pb2.InstallAgentResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -301,6 +317,33 @@ class DeviceControl(object):
             '/mirrorsync.DeviceControl/GetScreenshot',
             device__control__pb2.ScreenshotRequest.SerializeToString,
             device__control__pb2.ScreenshotResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InstallAgent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mirrorsync.DeviceControl/InstallAgent',
+            device__control__pb2.InstallAgentRequest.SerializeToString,
+            device__control__pb2.InstallAgentResponse.FromString,
             options,
             channel_credentials,
             insecure,

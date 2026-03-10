@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14\x64\x65vice_control.proto\x12\nmirrorsync\"\x07\n\x05\x45mpty\"^\n\x06\x44\x65vice\x12\x0e\n\x06serial\x18\x01 \x01(\t\x12\r\n\x05model\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\x12\x17\n\x0f\x61gent_connected\x18\x04 \x01(\x08\x12\x0c\n\x04port\x18\x05 \x01(\x05\"1\n\nDeviceList\x12#\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x12.mirrorsync.Device\"\x9f\x01\n\x0e\x43ommandRequest\x12\x0c\n\x04type\x18\x01 \x01(\t\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\x12\r\n\x05\x65nd_x\x18\x04 \x01(\x02\x12\r\n\x05\x65nd_y\x18\x05 \x01(\x02\x12\x13\n\x0b\x64uration_ms\x18\x06 \x01(\x05\x12\x0c\n\x04text\x18\x07 \x01(\t\x12\x10\n\x08key_code\x18\x08 \x01(\x05\x12\x16\n\x0etarget_devices\x18\t \x03(\t\"J\n\x0f\x43ommandResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x15\n\rdevices_count\x18\x03 \x01(\x05\"%\n\x13\x44\x65viceStatusRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"e\n\x14\x44\x65viceStatusResponse\x12\x0e\n\x06serial\x18\x01 \x01(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x17\n\x0f\x61gent_connected\x18\x03 \x01(\x08\x12\x14\n\x0clast_ping_ms\x18\x04 \x01(\x03\"\x1f\n\rMirrorRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"2\n\x0eMirrorResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"#\n\x11ScreenshotRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"X\n\x12ScreenshotResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x12\n\nimage_data\x18\x02 \x01(\x0c\x12\r\n\x05width\x18\x03 \x01(\x05\x12\x0e\n\x06height\x18\x04 \x01(\x05\x32\xc2\x03\n\rDeviceControl\x12\x38\n\x0bListDevices\x12\x11.mirrorsync.Empty\x1a\x16.mirrorsync.DeviceList\x12\x46\n\x0bSendCommand\x12\x1a.mirrorsync.CommandRequest\x1a\x1b.mirrorsync.CommandResponse\x12T\n\x0fGetDeviceStatus\x12\x1f.mirrorsync.DeviceStatusRequest\x1a .mirrorsync.DeviceStatusResponse\x12\x44\n\x0bStartMirror\x12\x19.mirrorsync.MirrorRequest\x1a\x1a.mirrorsync.MirrorResponse\x12\x43\n\nStopMirror\x12\x19.mirrorsync.MirrorRequest\x1a\x1a.mirrorsync.MirrorResponse\x12N\n\rGetScreenshot\x12\x1d.mirrorsync.ScreenshotRequest\x1a\x1e.mirrorsync.ScreenshotResponseB\x14\xaa\x02\x11MirrorSync.Protosb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14\x64\x65vice_control.proto\x12\nmirrorsync\"\x07\n\x05\x45mpty\"^\n\x06\x44\x65vice\x12\x0e\n\x06serial\x18\x01 \x01(\t\x12\r\n\x05model\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\x12\x17\n\x0f\x61gent_connected\x18\x04 \x01(\x08\x12\x0c\n\x04port\x18\x05 \x01(\x05\"1\n\nDeviceList\x12#\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x12.mirrorsync.Device\"\xe0\x01\n\x0e\x43ommandRequest\x12\x0c\n\x04type\x18\x01 \x01(\t\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\x12\r\n\x05\x65nd_x\x18\x04 \x01(\x02\x12\r\n\x05\x65nd_y\x18\x05 \x01(\x02\x12\x13\n\x0b\x64uration_ms\x18\x06 \x01(\x05\x12\x0c\n\x04text\x18\x07 \x01(\t\x12\x10\n\x08key_code\x18\x08 \x01(\x05\x12\x16\n\x0etarget_devices\x18\t \x03(\t\x12\x13\n\x0btap_view_id\x18\n \x01(\t\x12\x10\n\x08tap_text\x18\x0b \x01(\t\x12\x18\n\x10tap_content_desc\x18\x0c \x01(\t\"J\n\x0f\x43ommandResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x15\n\rdevices_count\x18\x03 \x01(\x05\"%\n\x13\x44\x65viceStatusRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"e\n\x14\x44\x65viceStatusResponse\x12\x0e\n\x06serial\x18\x01 \x01(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x17\n\x0f\x61gent_connected\x18\x03 \x01(\x08\x12\x14\n\x0clast_ping_ms\x18\x04 \x01(\x03\"\x1f\n\rMirrorRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"2\n\x0eMirrorResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"#\n\x11ScreenshotRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"X\n\x12ScreenshotResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x12\n\nimage_data\x18\x02 \x01(\x0c\x12\r\n\x05width\x18\x03 \x01(\x05\x12\x0e\n\x06height\x18\x04 \x01(\x05\"%\n\x13InstallAgentRequest\x12\x0e\n\x06serial\x18\x01 \x01(\t\"8\n\x14InstallAgentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\x95\x04\n\rDeviceControl\x12\x38\n\x0bListDevices\x12\x11.mirrorsync.Empty\x1a\x16.mirrorsync.DeviceList\x12\x46\n\x0bSendCommand\x12\x1a.mirrorsync.CommandRequest\x1a\x1b.mirrorsync.CommandResponse\x12T\n\x0fGetDeviceStatus\x12\x1f.mirrorsync.DeviceStatusRequest\x1a .mirrorsync.DeviceStatusResponse\x12\x44\n\x0bStartMirror\x12\x19.mirrorsync.MirrorRequest\x1a\x1a.mirrorsync.MirrorResponse\x12\x43\n\nStopMirror\x12\x19.mirrorsync.MirrorRequest\x1a\x1a.mirrorsync.MirrorResponse\x12N\n\rGetScreenshot\x12\x1d.mirrorsync.ScreenshotRequest\x1a\x1e.mirrorsync.ScreenshotResponse\x12Q\n\x0cInstallAgent\x12\x1f.mirrorsync.InstallAgentRequest\x1a .mirrorsync.InstallAgentResponseB\x14\xaa\x02\x11MirrorSync.Protosb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -39,21 +39,25 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DEVICELIST']._serialized_start=141
   _globals['_DEVICELIST']._serialized_end=190
   _globals['_COMMANDREQUEST']._serialized_start=193
-  _globals['_COMMANDREQUEST']._serialized_end=352
-  _globals['_COMMANDRESPONSE']._serialized_start=354
-  _globals['_COMMANDRESPONSE']._serialized_end=428
-  _globals['_DEVICESTATUSREQUEST']._serialized_start=430
-  _globals['_DEVICESTATUSREQUEST']._serialized_end=467
-  _globals['_DEVICESTATUSRESPONSE']._serialized_start=469
-  _globals['_DEVICESTATUSRESPONSE']._serialized_end=570
-  _globals['_MIRRORREQUEST']._serialized_start=572
-  _globals['_MIRRORREQUEST']._serialized_end=603
-  _globals['_MIRRORRESPONSE']._serialized_start=605
-  _globals['_MIRRORRESPONSE']._serialized_end=655
-  _globals['_SCREENSHOTREQUEST']._serialized_start=657
-  _globals['_SCREENSHOTREQUEST']._serialized_end=692
-  _globals['_SCREENSHOTRESPONSE']._serialized_start=694
-  _globals['_SCREENSHOTRESPONSE']._serialized_end=782
-  _globals['_DEVICECONTROL']._serialized_start=785
-  _globals['_DEVICECONTROL']._serialized_end=1235
+  _globals['_COMMANDREQUEST']._serialized_end=417
+  _globals['_COMMANDRESPONSE']._serialized_start=419
+  _globals['_COMMANDRESPONSE']._serialized_end=493
+  _globals['_DEVICESTATUSREQUEST']._serialized_start=495
+  _globals['_DEVICESTATUSREQUEST']._serialized_end=532
+  _globals['_DEVICESTATUSRESPONSE']._serialized_start=534
+  _globals['_DEVICESTATUSRESPONSE']._serialized_end=635
+  _globals['_MIRRORREQUEST']._serialized_start=637
+  _globals['_MIRRORREQUEST']._serialized_end=668
+  _globals['_MIRRORRESPONSE']._serialized_start=670
+  _globals['_MIRRORRESPONSE']._serialized_end=720
+  _globals['_SCREENSHOTREQUEST']._serialized_start=722
+  _globals['_SCREENSHOTREQUEST']._serialized_end=757
+  _globals['_SCREENSHOTRESPONSE']._serialized_start=759
+  _globals['_SCREENSHOTRESPONSE']._serialized_end=847
+  _globals['_INSTALLAGENTREQUEST']._serialized_start=849
+  _globals['_INSTALLAGENTREQUEST']._serialized_end=886
+  _globals['_INSTALLAGENTRESPONSE']._serialized_start=888
+  _globals['_INSTALLAGENTRESPONSE']._serialized_end=944
+  _globals['_DEVICECONTROL']._serialized_start=947
+  _globals['_DEVICECONTROL']._serialized_end=1480
 # @@protoc_insertion_point(module_scope)

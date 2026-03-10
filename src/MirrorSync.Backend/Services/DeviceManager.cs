@@ -257,4 +257,63 @@ public class DeviceManager
             return null;
         }
     }
+
+    /// <summary>Устанавливает APK агента на устройство через adb install -r.</summary>
+    public async Task<(bool Success, string Message)> InstallAgentAsync(string serial)
+    {
+        var apkPath = _config.AgentApkPath;
+        if (string.IsNullOrWhiteSpace(apkPath))
+        {
+            var baseDir = AppContext.BaseDirectory;
+            apkPath = Path.Combine(baseDir, "agent.apk");
+        }
+
+        if (!File.Exists(apkPath))
+        {
+            _logger.LogWarning("Agent APK not found at {Path}", apkPath);
+            return (false, $"APK not found: {apkPath}. Place agent.apk next to the app or set MirrorSync:AgentApkPath.");
+        }
+
+        var adbPath = FindAdbPath();
+        if (string.IsNullOrEmpty(adbPath))
+        {
+            _logger.LogWarning("ADB not found");
+            return (false, "ADB not found. Install Android platform-tools.");
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = adbPath,
+                Arguments = $"-s {serial} install -r \"{apkPath}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null)
+                return (false, "Failed to start adb install.");
+
+            var stdout = await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                _logger.LogWarning("adb install failed: {Stderr}", stderr);
+                return (false, stderr.Length > 0 ? stderr.Trim() : $"Exit code {process.ExitCode}");
+            }
+
+            _logger.LogInformation("Agent installed on {Serial}", serial);
+            return (true, "Agent installed. Enable Accessibility Service on the device.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Install agent failed for {Serial}", serial);
+            return (false, ex.Message);
+        }
+    }
 }

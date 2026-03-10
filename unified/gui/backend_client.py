@@ -100,3 +100,13 @@ class BackendClient:
         except Exception as e:
             print(f"Error getting screenshot: {e}")
             return None
+
+    def install_agent(self, serial: str) -> tuple[bool, str]:
+        """Устанавливает APK агента на устройство. Возвращает (success, message)."""
+        try:
+            request = device_control_pb2.InstallAgentRequest(serial=serial)
+            response = self.stub.InstallAgent(request)
+            return response.success, response.message or ""
+        except Exception as e:
+            print(f"Error installing agent: {e}")
+            return False, str(e)

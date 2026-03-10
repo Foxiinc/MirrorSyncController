@@ -11,6 +11,7 @@ service DeviceControl {
   rpc StartMirror(MirrorRequest) returns (MirrorResponse);
   rpc StopMirror(MirrorRequest) returns (MirrorResponse);
   rpc GetScreenshot(ScreenshotRequest) returns (ScreenshotResponse);
+  rpc InstallAgent(InstallAgentRequest) returns (InstallAgentResponse);
 }
 
 message Empty {}
@@ -78,4 +79,13 @@ message ScreenshotResponse {
   bytes image_data = 2;
   int32 width = 3;
   int32 height = 4;
+}
+
+message InstallAgentRequest {
+  string serial = 1;  // устройство, на которое ставим агент
+}
+
+message InstallAgentResponse {
+  bool success = 1;
+  string message = 2;
 }

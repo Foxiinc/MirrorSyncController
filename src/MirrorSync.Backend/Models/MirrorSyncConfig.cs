@@ -11,4 +11,6 @@ public class MirrorSyncConfig
     public int SyncDelayMs { get; set; } = 50;
     public int MaxReconnectAttempts { get; set; } = 5;
     public List<string> AdbPaths { get; set; } = new();
+    /// <summary>Путь к APK агента для установки на устройство. Если пусто — ищем agent.apk рядом с exe.</summary>
+    public string? AgentApkPath { get; set; }
 }
