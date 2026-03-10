@@ -1,0 +1,27 @@
+[package]
+name = "mirror-sync-controller"
+version = "1.0.0"
+description = "MirrorSync Controller — unified Android device mirror & control app"
+edition = "2021"
+
+[lib]
+name = "mirror_sync_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["net", "io-util", "time", "process", "sync", "macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+base64 = "0.22"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "s"
