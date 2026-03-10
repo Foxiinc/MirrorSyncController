@@ -1,0 +1,308 @@
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #1c2333;
+  --bg-card: #21262d;
+  --bg-hover: #30363d;
+  --border: #30363d;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --accent-glow: rgba(88, 166, 255, 0.15);
+  --success: #3fb950;
+  --error: #f85149;
+  --warning: #d29922;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 48px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.toolbar-left { display: flex; align-items: center; gap: 12px; }
+.toolbar-left h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+.toolbar-center { display: flex; align-items: center; }
+.toolbar-right { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+
+/* ── Toggle ── */
+.toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; }
+.toggle input { display: none; }
+.toggle-slider {
+  width: 36px; height: 20px;
+  background: var(--bg-hover);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: '';
+  width: 16px; height: 16px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  position: absolute;
+  top: 2px; left: 2px;
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle input:checked + .toggle-slider { background: var(--accent); }
+.toggle input:checked + .toggle-slider::after { transform: translateX(16px); background: #fff; }
+.toggle-label { color: var(--text-secondary); }
+
+/* ── Status ── */
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.online { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.status-dot.offline { background: var(--text-muted); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+.btn:active { transform: scale(0.97); }
+.btn-icon { padding: 6px; border: none; background: transparent; }
+.btn-icon:hover { background: var(--bg-hover); border-radius: var(--radius-sm); }
+.btn-small { padding: 4px; }
+.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-secondary { font-size: 12px; padding: 5px 10px; }
+
+/* ── Main Layout ── */
+#content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 320px;
+  min-width: 320px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#sidebar section {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+#sidebar h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* ── Device List ── */
+#device-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.device-card:hover { border-color: var(--border); background: var(--bg-card); }
+.device-card.selected { border-color: var(--accent); background: var(--accent-glow); }
+.device-card .agent-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.device-card .agent-dot.connected { background: var(--success); }
+.device-card .agent-dot.disconnected { background: var(--error); }
+.device-card .device-info { flex: 1; min-width: 0; }
+.device-card .device-model { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-card .device-serial { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+
+/* ── Controls ── */
+.control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.btn-control { font-size: 13px; padding: 8px; }
+
+.text-input-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.text-input-row input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+.text-input-row input:focus { border-color: var(--accent); }
+
+.action-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Log ── */
+#log-section { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.log-header { display: flex; justify-content: space-between; align-items: center; }
+#log-output {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+.log-entry { padding: 1px 0; }
+.log-entry .log-time { color: var(--text-muted); margin-right: 6px; }
+.log-entry.success { color: var(--success); }
+.log-entry.error { color: var(--error); }
+
+/* ── Phone Area ── */
+#phone-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+#phone-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px 0;
+  min-height: 36px;
+  overflow-x: auto;
+}
+
+.phone-tab {
+  padding: 6px 16px;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.phone-tab:hover { color: var(--text-primary); background: var(--bg-card); }
+.phone-tab.active { color: var(--accent); background: var(--bg-tertiary); border-color: var(--accent); }
+
+#phone-screens-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  position: relative;
+}
+
+#no-device-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── Phone Screen ── */
+.phone-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+}
+.phone-screen.active { display: flex; }
+
+.screen-wrapper {
+  position: relative;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+  box-shadow: var(--shadow), 0 0 30px rgba(0, 0, 0, 0.5);
+  max-height: calc(100% - 50px);
+  aspect-ratio: 9 / 19.5;
+}
+
+.screen-wrapper canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.screen-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.screen-actions .btn { font-size: 12px; padding: 4px 10px; }
+
+.swipe-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Animations ── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.device-card { animation: fadeIn 0.2s ease; }

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MirrorSync Controller</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div class="toolbar-left">
+        <h1>MirrorSync</h1>
+        <button id="btn-refresh" class="btn btn-icon" title="Refresh devices">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </button>
+      </div>
+      <div class="toolbar-center">
+        <label class="toggle" id="broadcast-toggle">
+          <input type="checkbox" id="broadcast-checkbox">
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Broadcast</span>
+        </label>
+      </div>
+      <div class="toolbar-right">
+        <span id="status-indicator" class="status-dot offline"></span>
+        <span id="device-count">0 devices</span>
+      </div>
+    </header>
+
+    <main id="content">
+      <aside id="sidebar">
+        <section id="device-list-section">
+          <h2>Devices</h2>
+          <div id="device-list"></div>
+        </section>
+
+        <section id="controls-section">
+          <h2>Controls</h2>
+          <div class="control-grid">
+            <button class="btn btn-control" data-key="3">Home</button>
+            <button class="btn btn-control" data-key="4">Back</button>
+            <button class="btn btn-control" data-key="82">Menu</button>
+            <button class="btn btn-control" data-key="187">Recent</button>
+          </div>
+          <div class="text-input-row">
+            <input type="text" id="text-input" placeholder="Send text…">
+            <button class="btn btn-accent" id="btn-send-text">Send</button>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-secondary" id="btn-install-agent">Install Agent</button>
+            <button class="btn btn-secondary" id="btn-start-mirror">Start scrcpy</button>
+            <button class="btn btn-secondary" id="btn-stop-mirror">Stop scrcpy</button>
+          </div>
+        </section>
+
+        <section id="log-section">
+          <div class="log-header">
+            <h2>Log</h2>
+            <button class="btn btn-icon btn-small" id="btn-clear-log" title="Clear log">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+            </button>
+          </div>
+          <div id="log-output"></div>
+        </section>
+      </aside>
+
+      <div id="phone-area">
+        <div id="phone-tabs"></div>
+        <div id="phone-screens-container">
+          <div id="no-device-placeholder">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            <p>Connect an Android device to get started</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
