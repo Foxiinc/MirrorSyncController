@@ -1,3 +1,4 @@
+use crate::config::AppConfig;
 use crate::device::DeviceManager;
 use crate::models::*;
 use tauri::State;
@@ -74,4 +75,74 @@ pub async fn install_agent(
 ) -> Result<InstallResult, String> {
     let mgr = state.lock().await;
     Ok(mgr.install_agent(&serial).await)
+}
+
+#[tauri::command]
+pub async fn download_apk() -> Result<DownloadApkResult, String> {
+    // Загружаем конфиг ещё раз (он лёгкий), чтобы взять URL.
+    let config = AppConfig::load();
+    let url = match config.apk_download_url {
+        Some(u) if !u.is_empty() => u,
+        _ => {
+            return Ok(DownloadApkResult {
+                success: false,
+                message: "APK download URL is not configured in config.json (apk_download_url)".into(),
+                path: None,
+            })
+        }
+    };
+
+    // Кладём agent.apk в текущую рабочую директорию процесса.
+    // Это хорошо согласуется с DRM/лоадером: он может поднять процесс
+    // из своей папки и ожидать, что вспомогательные файлы будут там.
+    let cwd = std::env::current_dir().map_err(|e| format!("Failed to resolve current dir: {e}"))?;
+    let target_path = cwd.join("agent.apk");
+
+    let url_clone = url.clone();
+    let target_clone = target_path.clone();
+
+    let result = tauri::async_runtime::spawn(async move {
+        let client = reqwest::Client::new();
+        let resp = client
+            .get(&url_clone)
+            .send()
+            .await
+            .map_err(|e| format!("Download failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("HTTP error: {}", resp.status()));
+        }
+
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read body: {e}"))?;
+
+        if let Some(parent) = target_clone.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {e}"))?;
+        }
+
+        // Пишем во временный файл и переименовываем для атомарности.
+        let tmp_path = target_clone.with_extension("apk.tmp");
+        std::fs::write(&tmp_path, &bytes).map_err(|e| format!("Failed to write file: {e}"))?;
+        std::fs::rename(&tmp_path, &target_clone)
+            .map_err(|e| format!("Failed to move file: {e}"))?;
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Join error: {e}"))?;
+
+    match result {
+        Ok(()) => Ok(DownloadApkResult {
+            success: true,
+            message: "APK downloaded successfully".into(),
+            path: Some(target_path.display().to_string()),
+        }),
+        Err(msg) => Ok(DownloadApkResult {
+            success: false,
+            message: msg,
+            path: None,
+        }),
+    }
 }

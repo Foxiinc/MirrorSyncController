@@ -1,101 +1,53 @@
-# Build outputs
-bin/
-obj/
-build/
-dist/
-out/
-*.spec
-__pycache__/
-.pyinstaller/
+# Rust / Cargo
+target/
+**/*.rs.bk
+Cargo.lock
 
-# .NET
-*.dll
-*.exe
-*.pdb
-**/publish/
-*.cache
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-packages/
-.vs/
-.vscode/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.pytest_cache/
-*.egg-info/
-
-# Generated protobuf files
-gui/*_pb2.py
-gui/*_pb2_grpc.py
-unified/gui/*_pb2.py
-unified/gui/*_pb2_grpc.py
+# Tauri
+src-tauri/gen/
+src-tauri/icons/*.png
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns
 
 # Android
-*.iml
-.gradle
-/local.properties
-/.idea/
-.DS_Store
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+android/.gradle/
 android/app/build/
 android/build/
-android/.gradle/
+android/local.properties
+*.apk
+*.aab
 
-# Installer outputs
-installer/Output/
-installer/temp/
+# IDE
+.idea/
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
 logs/
 *.log
 
-# Temporary files
-*.tmp
-*.temp
-*~
-
-# OS generated files
-Thumbs.db
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-
-# IDE files
-*.swp
-*.swo
-*~
-
-# Dependencies
-node_modules/
-platform-tools/
-scrcpy/
-
-# Secrets and configs
+# Secrets
 *.key
 *.pem
-appsettings.*.json
-!appsettings.json
+*.keystore
+!mirrorsync.keystore
 
-# Test results
-TestResults/
-*.trx
-*.coverage
-*.coveragexml
+# Node (if used for frontend later)
+node_modules/
+dist/
+
+# Old project artifacts
+bin/
+obj/
+packages/
+__pycache__/
+*.pyc
+venv/
+*.egg-info/

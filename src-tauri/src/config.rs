@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -19,6 +18,10 @@ pub struct AppConfig {
     pub adb_paths: Vec<String>,
     #[serde(default)]
     pub agent_apk_path: Option<String>,
+    /// Прямой URL до APK (например, GitHub Releases latest/download/agent.apk).
+    /// Если не задан – команда download_apk вернёт ошибку.
+    #[serde(default)]
+    pub apk_download_url: Option<String>,
 }
 
 fn default_agent_port() -> u16 { 4444 }
@@ -39,36 +42,26 @@ impl Default for AppConfig {
             max_reconnect_attempts: 5,
             adb_paths: vec![],
             agent_apk_path: None,
+            apk_download_url: None,
         }
     }
 }
 
 impl AppConfig {
     pub fn load() -> Self {
-        let locations = [
-            std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|d| d.join("config.json"))),
-            Some(PathBuf::from("config.json")),
-        ];
+        // Конфиг вшит на этапе сборки.
+        // Путь: src-tauri/src/ -> ../../config.json (корень репозитория).
+        const EMBEDDED_CONFIG: &str = include_str!("../../config.json");
 
-        for loc in locations.iter().flatten() {
-            if loc.exists() {
-                if let Ok(data) = std::fs::read_to_string(loc) {
-                    match serde_json::from_str::<AppConfig>(&data) {
-                        Ok(cfg) => {
-                            tracing::info!("Config loaded from {}", loc.display());
-                            return cfg;
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to parse {}: {}", loc.display(), e);
-                        }
-                    }
-                }
+        match serde_json::from_str::<AppConfig>(EMBEDDED_CONFIG) {
+            Ok(cfg) => {
+                tracing::info!("Using embedded config.json");
+                cfg
+            }
+            Err(e) => {
+                tracing::warn!("Failed to parse embedded config.json: {e}, using defaults");
+                AppConfig::default()
             }
         }
-
-        tracing::info!("Using default config");
-        AppConfig::default()
     }
 }

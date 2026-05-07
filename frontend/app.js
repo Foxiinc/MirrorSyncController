@@ -13,7 +13,8 @@ const state = {
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
-  startPolling();
+  // Один раз при старте подтягиваем устройства.
+  refreshDevices();
 });
 
 function bindEvents() {
@@ -32,6 +33,7 @@ function bindEvents() {
   document.getElementById('btn-install-agent').addEventListener('click', installAgent);
   document.getElementById('btn-start-mirror').addEventListener('click', startMirror);
   document.getElementById('btn-stop-mirror').addEventListener('click', stopMirror);
+  document.getElementById('btn-download-apk').addEventListener('click', downloadApk);
 
   document.querySelectorAll('.btn-control').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -39,11 +41,6 @@ function bindEvents() {
       sendKeyCommand(keyCode);
     });
   });
-}
-
-function startPolling() {
-  refreshDevices();
-  state.refreshTimer = setInterval(refreshDevices, 3000);
 }
 
 // ── Device Management ──
@@ -446,6 +443,21 @@ async function installAgent() {
     log(result.message, result.success);
   } catch (e) {
     log(`✗ Install error: ${e}`, false);
+  }
+}
+
+// ── Download APK ──
+async function downloadApk() {
+  log('Downloading agent APK...');
+  try {
+    const result = await invoke('download_apk');
+    if (result.success) {
+      log(`APK downloaded: ${result.path || 'agent.apk'}`, true);
+    } else {
+      log(`✗ Download failed: ${result.message}`, false);
+    }
+  } catch (e) {
+    log(`✗ Download error: ${e}`, false);
   }
 }
 

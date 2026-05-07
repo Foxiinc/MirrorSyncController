@@ -95,6 +95,14 @@ pub struct InstallResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadApkResult {
+    pub success: bool,
+    pub message: String,
+    /// Итоговый путь к файлу agent.apk на диске.
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeSyncResponse {
     #[serde(rename = "client_time", default)]
     pub client_time: i64,

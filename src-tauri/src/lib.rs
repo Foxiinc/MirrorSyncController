@@ -36,6 +36,7 @@ pub fn run() {
             commands::start_mirror,
             commands::stop_mirror,
             commands::install_agent,
+            commands::download_apk,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

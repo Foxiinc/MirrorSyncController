@@ -222,8 +222,19 @@ impl DeviceManager {
             return Ok(());
         }
 
+        // Агрессивный профиль: максимум FPS/качество, минимальная задержка.
         let child = tokio::process::Command::new("scrcpy")
-            .args(["-s", serial, &format!("--window-title=Mirror-{serial}")])
+            .args([
+                "-s",
+                serial,
+                "--bit-rate",
+                "16M",
+                "--max-fps",
+                "60",
+                "--no-vsync",
+                "--turn-screen-off",
+                &format!("--window-title=Mirror-{serial}"),
+            ])
             .spawn()
             .map_err(|e| format!("Failed to start scrcpy: {e}"))?;
 
@@ -251,16 +262,34 @@ impl DeviceManager {
             }
         };
 
-        let apk_path = self
-            .config
-            .agent_apk_path
-            .clone()
-            .unwrap_or_else(|| {
+        // Ищем APK в таком порядке:
+        // 1) Путь явно задан в конфиге.
+        // 2) В текущей рабочей директории (drm/launcher могут положить туда).
+        // 3) Рядом с бинарником (dev/standalone случай).
+        let apk_path = if let Some(p) = &self.config.agent_apk_path {
+            p.clone()
+        } else if let Ok(cwd) = std::env::current_dir() {
+            let candidate = cwd.join("agent.apk");
+            if candidate.exists() {
+                candidate.to_string_lossy().to_string()
+            } else {
                 std::env::current_exe()
                     .ok()
-                    .and_then(|p| p.parent().map(|d| d.join("agent.apk").to_string_lossy().to_string()))
+                    .and_then(|p| {
+                        p.parent()
+                            .map(|d| d.join("agent.apk").to_string_lossy().to_string())
+                    })
                     .unwrap_or_else(|| "agent.apk".to_string())
-            });
+            }
+        } else {
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| {
+                    p.parent()
+                        .map(|d| d.join("agent.apk").to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| "agent.apk".to_string())
+        };
 
         if !std::path::Path::new(&apk_path).exists() {
             return InstallResult {

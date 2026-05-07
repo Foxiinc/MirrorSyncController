@@ -1,0 +1,13 @@
+{
+  "agent_port": 4444,
+  "max_devices": 20,
+  "scan_interval_ms": 5000,
+  "command_timeout_ms": 1000,
+  "sync_delay_ms": 5,
+  "max_reconnect_attempts": 5,
+  "adb_paths": [
+  "C:\\Android\\Sdk\\platform-tools\\adb.exe",
+  "C:\\platform-tools\\adb.exe"],
+  "agent_apk_path": null,
+  "apk_download_url": "http://64.188.93.213:5174/f/6xGz806GPEFsVFWFGu31Jg"
+}

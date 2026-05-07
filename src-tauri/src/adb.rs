@@ -14,26 +14,40 @@ pub async fn find_adb(extra_paths: &[String]) -> Option<String> {
         }
     }
 
-    if let Ok(output) = Command::new("which").arg("adb").output().await {
+    // 1) Попробуем просто запустить `adb` из PATH.
+    if let Ok(output) = Command::new("adb").arg("version").output().await {
         if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
+            // Если команда прошла — можно использовать просто "adb" как имя бинарника.
+            return Some("adb".to_string());
+        }
+    }
+
+    // 2) Дополнительные OS‑специфичные пути и утилиты (`which`/`where`) как fallback.
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(output) = Command::new("which").arg("adb").output().await {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
             }
         }
     }
 
     #[cfg(target_os = "windows")]
-    if let Ok(output) = Command::new("where").arg("adb").output().await {
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            if !path.is_empty() {
-                return Some(path);
+    {
+        if let Ok(output) = Command::new("where").arg("adb").output().await {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
             }
         }
     }
